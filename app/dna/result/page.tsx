@@ -17,26 +17,16 @@ export default function DNAResultPage() {
 
   useEffect(() => {
     const raw = localStorage.getItem(DNA_STORAGE_KEY);
-    if (!raw) {
-      router.push("/dna");
-      return;
-    }
+    if (!raw) { router.push("/dna"); return; }
     try {
       const parsed: TravelDNA = JSON.parse(raw);
       setDNA(parsed);
-      const agent = new PreferenceAgent();
-      setProfile(agent.analyze(parsed));
-    } catch {
-      router.push("/dna");
-    }
-  }, [router]);
+      setProfile(new PreferenceAgent().buildProfile(parsed));
+    } catch { router.push("/dna"); }
+  }, []);
 
   if (!dna || !profile) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   }
 
   return (
@@ -45,17 +35,11 @@ export default function DNAResultPage() {
         <h1 className="text-2xl font-bold tracking-tight">你的旅行 DNA</h1>
         <p className="text-sm text-muted-foreground mt-2">AI 已理解你的偏好 · {profile.persona}</p>
       </div>
-
       <DNAProfile dna={dna} profile={profile} />
-
       <div className="mt-8 flex gap-3">
-        <Button variant="outline" size="lg" onClick={() => router.push("/dna")}>
-          重新测试
-        </Button>
+        <Button variant="outline" size="lg" onClick={() => router.push("/dna")}>重新测试</Button>
         <Button size="lg" className="gap-2" onClick={() => router.push("/planning")}>
-          <Sparkles className="h-4 w-4" />
-          开始 AI 规划
-          <ArrowRight className="h-4 w-4" />
+          <Sparkles className="h-4 w-4" />开始 AI 规划<ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </div>

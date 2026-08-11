@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Sparkles, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +88,7 @@ function saveDNA(dna: TravelDNA) {
   }
 }
 
-export default function DNAPage() {
+function DNAPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const destination = searchParams.get("destination") || "";
@@ -186,5 +186,13 @@ export default function DNAPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function DNAPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-4rem)]" />}>
+      <DNAPageContent />
+    </Suspense>
   );
 }

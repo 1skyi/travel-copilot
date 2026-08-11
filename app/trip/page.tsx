@@ -1,24 +1,27 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { MapPin, Compass, ArrowRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TravelPlan, TravelDNA } from "@/types/travel";
+import { TripPlan } from "@/types/plan";
+import { TravelDNA } from "@/types/travel";
 
-const timelineColors = ["#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899"];
+const timelineColors = ["#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#ef4444", "#06b6d4"];
 
 export default function TripPage() {
   const router = useRouter();
-  const [plan, setPlan] = useState<TravelPlan | null>(null);
+  const searchParams = useSearchParams();
+  const planIdx = Number(searchParams.get("plan")) || 0;
+
+  const [plan, setPlan] = useState<TripPlan | null>(null);
   const [dna, setDNA] = useState<TravelDNA | null>(null);
   const [activeDay, setActiveDay] = useState(0);
 
   useEffect(() => {
-    const rawPlans = sessionStorage.getItem("travel-plans");
+    const rawPlans = sessionStorage.getItem("s3-plans");
     const rawDNA = localStorage.getItem("travel-dna");
 
     if (!rawPlans) {
@@ -27,14 +30,14 @@ export default function TripPage() {
     }
 
     try {
-      const plans: TravelPlan[] = JSON.parse(rawPlans);
-      // Use first plan (or selected — for now default to index 0)
-      setPlan(plans[0]);
+      const plans: TripPlan[] = JSON.parse(rawPlans);
+      const idx = Math.min(planIdx, plans.length - 1);
+      setPlan(plans[idx]);
       if (rawDNA) setDNA(JSON.parse(rawDNA));
     } catch {
       router.push("/planning");
     }
-  }, [router]);
+  }, [router, planIdx]);
 
   if (!plan) {
     return (
@@ -44,18 +47,22 @@ export default function TripPage() {
     );
   }
 
-  const activeItems = plan.days[activeDay]?.items || [];
+  const day = plan.route[activeDay];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-background/80 backdrop-blur sticky top-0 z-10">
+        <div className="flex items-center gap-3">
           <MapPin className="h-4 w-4 text-primary" />
-          <span className="font-semibold">
-            {dna?.destination || "目的地"} · {plan.name}
-          </span>
-          <Badge variant="secondary" className="text-[10px]">{plan.rating} 分</Badge>
+          <div>
+            <span className="font-semibold text-sm">{plan.title}</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Badge variant="secondary" className="text-[10px]">{plan.score} 分</Badge>
+              <span className="text-[10px] text-muted-foreground">¥{plan.budget.toLocaleString()}</span>
+              <span className="text-[10px] text-muted-foreground">{plan.route.length} 天</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           <Link href="/decision">
@@ -84,83 +91,109 @@ export default function TripPage() {
             </defs>
             <rect width="100" height="100" fill="url(#grid)" />
 
+            {/* Route polyline — all days */}
             <polyline
-              points="15,70 40,55 60,45 85,30"
+              points={plan.route.map((_, i) => {
+                const x = 15 + (70 / (plan.route.length - 1 || 1)) * i;
+                const y = 80 - (i % 3) * 25;
+                return `${x},${y}`;
+              }).join(" ")}
               fill="none"
               stroke={timelineColors[activeDay % timelineColors.length]}
-              strokeWidth="1"
-              strokeDasharray="2,1.5"
-              opacity="0.5"
-            />
-            <polyline
-              points="15,70 40,55 60,45 85,30"
-              fill="none"
-              stroke={timelineColors[activeDay % timelineColors.length]}
-              strokeWidth="0.6"
-              className="animate-pulse"
+              strokeWidth="1.5"
+              strokeDasharray="4,2"
+              opacity="0.4"
             />
 
-            {[
-              { x: 15, y: 70, label: "起点" },
-              { x: 40, y: 55, label: "景点" },
-              { x: 60, y: 45, label: "核心" },
-              { x: 85, y: 30, label: "终点" },
-            ].map((wp, i) => (
-              <g key={wp.label}>
-                <circle cx={wp.x} cy={wp.y} r="2" fill={timelineColors[activeDay % timelineColors.length]} opacity="0.3" className="animate-ping" />
-                <circle cx={wp.x} cy={wp.y} r="1.5" fill={timelineColors[activeDay % timelineColors.length]} />
-                <text x={wp.x} y={wp.y - 3} textAnchor="middle" className="text-[3px] fill-muted-foreground">{wp.label}</text>
-              </g>
-            ))}
+            {/* Waypoints */}
+            {plan.route.map((r, i) => {
+              const x = 15 + (70 / (plan.route.length - 1 || 1)) * i;
+              const y = 80 - (i % 3) * 25;
+              const isActive = i === activeDay;
+              return (
+                <g key={i}>
+                  {isActive && (
+                    <circle cx={x} cy={y} r="4" fill={timelineColors[activeDay % timelineColors.length]} opacity="0.2" className="animate-ping" />
+                  )}
+                  <circle cx={x} cy={y} r={isActive ? "2.5" : "1.5"} fill={isActive ? timelineColors[activeDay % timelineColors.length] : "#94a3b8"} />
+                  <text x={x} y={y - 3.5} textAnchor="middle" className="text-[3px] fill-muted-foreground">{r.location.slice(0, 4)}</text>
+                </g>
+              );
+            })}
           </svg>
 
-          <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            路线示意 · {plan.days[activeDay]?.label || "Day " + (activeDay + 1)}
+          <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded shadow-sm">
+            Day {day?.day || activeDay + 1} · {day?.location || ""}
+          </div>
+          <div className="absolute bottom-4 right-4 flex flex-wrap gap-1.5">
+            {plan.tags.map((t) => (
+              <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
+            ))}
           </div>
         </div>
 
         {/* Right: Timeline */}
         <div className="overflow-auto p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground mb-4">
+            {plan.route.length} 天行程
+          </h2>
+
+          {/* Day selector */}
           <div className="flex gap-1 mb-6 flex-wrap">
-            {plan.days.map((d, i) => (
+            {plan.route.map((d, i) => (
               <button
                 key={d.day}
                 onClick={() => setActiveDay(i)}
                 className={
-                  "px-4 py-1.5 text-sm rounded-full transition-all " +
-                  (i === activeDay ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")
+                  "px-3 py-1.5 text-xs rounded-full transition-all " +
+                  (i === activeDay
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80")
                 }
               >
-                {d.label}
+                Day {d.day}
               </button>
             ))}
           </div>
 
-          <div className="relative">
-            {activeItems.map((item, idx) => {
-              const isLast = idx === activeItems.length - 1;
-              return (
-                <div key={idx} className="relative flex gap-4 pb-8">
-                  {!isLast && (
-                    <div className="absolute left-[11px] top-8 bottom-0 w-px bg-border" />
-                  )}
-                  <div
-                    className="relative z-10 mt-1 h-[22px] w-[22px] shrink-0 rounded-full border-2 border-background"
-                    style={{ background: timelineColors[activeDay % timelineColors.length] }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-muted-foreground">{item.time}</span>
-                    <h4 className="text-sm font-medium mt-0.5">{item.title}</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {/* Day detail */}
+          {day && (
+            <>
+              <div className="mb-6 p-4 rounded-xl bg-muted/30 border">
+                <p className="text-xs text-muted-foreground">Day {day.day}</p>
+                <h3 className="text-xl font-bold mt-0.5">{day.location}</h3>
+              </div>
 
-          <div className="flex gap-2 mt-4 pt-4 border-t">
+              {/* Activities timeline */}
+              <div className="relative">
+                {day.activities.map((activity, idx) => {
+                  const isLast = idx === day.activities.length - 1;
+                  const colors = timelineColors;
+                  return (
+                    <div key={idx} className="relative flex gap-3 pb-6">
+                      {!isLast && (
+                        <div className="absolute left-[13px] top-8 bottom-0 w-px bg-border" />
+                      )}
+                      <div
+                        className="relative z-10 mt-1 h-[26px] w-[26px] shrink-0 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white"
+                        style={{ background: colors[activeDay % colors.length] }}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <h4 className="text-sm font-medium leading-snug">{activity}</h4>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Plan selection buttons (if multiple plans in session) */}
+          <div className="flex gap-2 mt-6 pt-4 border-t">
             <Link href="/decision">
-              <Button variant="outline" size="sm">查看 AI 建议</Button>
+              <Button variant="outline" size="sm">AI 关键建议</Button>
             </Link>
             <Link href="/journey">
               <Button size="sm" className="gap-1.5">

@@ -85,7 +85,7 @@ export function DNAProfile({ dna, profile }: DNAProfileProps) {
       {/* DNA Tags */}
       <div className="space-y-2">
         {["style", "pace", "interest", "hotel", "avoid", "budget"].map((key) => {
-          const value = (dna as Record<string, unknown>)[key];
+          const value = (dna as unknown as Record<string, unknown>)[key];
           if (key === "createdAt" || key === "destination") return null;
 
           let displayValue = "";
