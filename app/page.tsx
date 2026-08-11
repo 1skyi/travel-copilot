@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, MapPin } from "lucide-react";
+import { Sparkles, Send, MapPin, Zap, Play, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Memory } from "@/lib/memory";
 
 const hotTopics = [
   { label: "新疆", icon: "🏔️" },
@@ -11,6 +13,50 @@ const hotTopics = [
   { label: "日本", icon: "⛩️" },
   { label: "川西", icon: "🏞️" },
 ];
+
+interface DemoTemplate {
+  label: string;
+  dest: string;
+  days: number;
+  dna: {
+    style: string;
+    pace: string;
+    avoid: string[];
+    hotel: string;
+    interest: string[];
+    budget: string;
+  };
+}
+
+const demoTemplates: DemoTemplate[] = [
+  {
+    label: "📷 新疆7日摄影",
+    dest: "新疆",
+    days: 7,
+    dna: { style: "摄影旅行", pace: "慢慢体验", avoid: ["人多", "频繁换酒店"], hotel: "特色民宿", interest: ["自然风光", "拍照"], budget: "high" },
+  },
+  {
+    label: "🍜 云南7日美食",
+    dest: "云南",
+    days: 7,
+    dna: { style: "美食旅行", pace: "适中", avoid: ["每天早起", "太累"], hotel: "舒适型", interest: ["美食", "历史文化"], budget: "medium" },
+  },
+  {
+    label: "⛩️ 日本7日经典",
+    dest: "日本",
+    days: 7,
+    dna: { style: "慢旅行", pace: "慢慢体验", avoid: ["排队", "长时间坐车"], hotel: "精品酒店", interest: ["历史文化", "购物", "美食"], budget: "high" },
+  },
+];
+
+function applyDemo(template: DemoTemplate) {
+  const dna = {
+    ...template.dna,
+    createdAt: new Date().toISOString(),
+  };
+  Memory.saveDNA(dna);
+  return "/planning?destination=" + encodeURIComponent(template.dest) + "&days=" + template.days;
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -24,11 +70,13 @@ export default function HomePage() {
     }
   };
 
+  const lastTrip = typeof window !== "undefined" ? Memory.getLastTrip() : null;
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-8">
       {/* Logo */}
-      <div className="flex items-center gap-3 mb-12">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
           <MapPin className="h-5 w-5 text-primary-foreground" />
         </div>
         <span className="text-xl font-semibold tracking-tight">Travel Copilot</span>
@@ -70,10 +118,66 @@ export default function HomePage() {
           ))}
         </div>
 
+        {/* Resume last trip */}
+        {lastTrip && (
+          <div className="mt-6">
+            <button
+              onClick={() => router.push("/trip?plan=0")}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed bg-muted/20 hover:bg-muted/40 transition-all text-left group"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Play className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium">继续上次的旅行</p>
+                <p className="text-[10px] text-muted-foreground">{lastTrip.plan.title} · {lastTrip.destination}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </button>
+          </div>
+        )}
+
+        <Separator label="或快速体验 Demo" />
+
+        {/* Demo Scenarios */}
+        <div className="grid gap-2">
+          {demoTemplates.map((tpl) => (
+            <button
+              key={tpl.label}
+              onClick={() => {
+                const url = applyDemo(tpl);
+                router.push(url);
+              }}
+              className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all text-left group"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
+                <Zap className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium group-hover:text-primary transition-colors">{tpl.label}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {tpl.dna.style} · {tpl.dna.pace} · ¥{tpl.dna.budget === "high" ? "8,500+" : tpl.dna.budget === "medium" ? "6,500" : "4,500"}
+                </p>
+              </div>
+              <Badge variant="secondary" className="text-[10px] shrink-0">Demo</Badge>
+            </button>
+          ))}
+        </div>
+
         <p className="text-center text-xs text-muted-foreground/50 mt-8">
           AI 旅行决策助手 · 不是攻略，是决策
         </p>
       </div>
+    </div>
+  );
+}
+
+function Separator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 my-6">
+      <div className="flex-1 h-px bg-border" />
+      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
+      <div className="flex-1 h-px bg-border" />
     </div>
   );
 }

@@ -88,3 +88,73 @@ export interface PipelineResult {
   reviews: ReviewResult[];
   decisions: DecisionOption[];
 }
+
+// ============================================================
+// Sprint 4 — Timeline & Map & Journey types
+// ============================================================
+
+export interface TimelineActivity {
+  time: string;            // "09:00"
+  title: string;           // "抵达乌鲁木齐"
+  description: string;     // "乌鲁木齐地窝堡国际机场"
+  type: "transport" | "activity" | "meal" | "rest" | "photo";
+  icon?: string;
+}
+
+export interface DailyTimeline {
+  day: number;
+  location: string;
+  items: TimelineActivity[];
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  type: "city" | "attraction" | "hotel" | "restaurant" | "transport";
+}
+
+export interface JourneyState {
+  planTitle: string;
+  currentDay: number;
+  totalDays: number;
+  date: string;
+  weather: {
+    temp: string;
+    desc: string;
+    icon: string;   // lucide icon name
+  };
+  sunrise: string;
+  sunset: string;
+  wind: string;
+  nextStop: {
+    name: string;
+    eta: string;
+    tip: string;
+  };
+  todayTimeline: TimelineActivity[];
+  tips: string[];
+}
+
+// ============================================================
+// ItineraryAgent input
+// ============================================================
+
+export interface ItineraryInput {
+  plan: TripPlan;
+  dna: {
+    style: string;
+    pace: string;
+    avoid: string[];
+  };
+}
+
+// ============================================================
+// JourneyAgent input
+// ============================================================
+
+export interface JourneyInput {
+  plan: TripPlan;
+  dayIndex: number;
+}

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, ArrowRight, Loader2, MapPin, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,55 +9,81 @@ import { Input } from "@/components/ui/input";
 import { AgentStatusList } from "@/components/AgentStatus";
 import { TravelController } from "@/agents/TravelAgentController";
 import { TravelDNA, AgentStep } from "@/types/travel";
-
-const DNA_STORAGE_KEY = "travel-dna";
-const S3_PLANS_KEY = "s3-plans";
-const S3_BUDGETS_KEY = "s3-budgets";
-const S3_REVIEWS_KEY = "s3-reviews";
-const S3_DECISIONS_KEY = "s3-decisions";
+import { Memory } from "@/lib/memory";
 
 export default function PlanningPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlDest = searchParams.get("destination") || "";
+  const urlDays = searchParams.get("days") || "";
+
   const [dna, setDNA] = useState<TravelDNA | null>(null);
-  const [dest, setDest] = useState("");
-  const [days, setDays] = useState("7");
+  const [dest, setDest] = useState(urlDest);
+  const [days, setDays] = useState(urlDays || "7");
   const [started, setStarted] = useState(false);
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const raw = localStorage.getItem(DNA_STORAGE_KEY);
+    const raw = localStorage.getItem("travel-dna");
     if (!raw) { router.push("/dna"); return; }
     try {
       const p: TravelDNA = JSON.parse(raw);
       setDNA(p);
-      if (p.destination) setDest(p.destination);
+      if (p.destination && !urlDest) setDest(p.destination);
     } catch { router.push("/dna"); }
-  }, []);
+  }, [router, urlDest]);
 
-  const handleStart = async () => {
-    if (!dest.trim() || !dna) return;
+  // Auto-run for demo mode
+  useEffect(() => {
+    if (urlDest && dna && !started) {
+      const d = urlDest;
+      const dayCount = Number(urlDays) || 7;
+      setDest(d);
+      setDays(String(dayCount));
+      // Small delay for visual polish
+      const t = setTimeout(() => runPipeline(d, dayCount), 600);
+      return () => clearTimeout(t);
+    }
+  }, [urlDest, dna, started]);
+
+  const runPipeline = async (destination: string, dayCount: number) => {
+    if (!dna) return;
     setStarted(true);
     setError("");
 
-    // Clear old Sprint 2 data
     sessionStorage.removeItem("travel-plans");
-    sessionStorage.removeItem("travel-profile");
 
     const ctrl = new TravelController();
     ctrl.addProgressListener((s) => setSteps(s));
 
     try {
-      const result = await ctrl.run(dest.trim(), Number(days) || 7);
-      sessionStorage.setItem(S3_PLANS_KEY, JSON.stringify(result.plans));
-      sessionStorage.setItem(S3_BUDGETS_KEY, JSON.stringify(result.budgets));
-      sessionStorage.setItem(S3_REVIEWS_KEY, JSON.stringify(result.reviews));
-      sessionStorage.setItem(S3_DECISIONS_KEY, JSON.stringify(result.decisions));
+      const result = await ctrl.run(destination.trim(), dayCount);
+      sessionStorage.setItem("s3-plans", JSON.stringify(result.plans));
+      sessionStorage.setItem("s3-budgets", JSON.stringify(result.budgets));
+      sessionStorage.setItem("s3-reviews", JSON.stringify(result.reviews));
+      sessionStorage.setItem("s3-decisions", JSON.stringify(result.decisions));
+
+      // Save to memory for history
+      Memory.saveLastTrip(result.plans[0], destination);
+      Memory.addToHistory({
+        destination,
+        days: dayCount,
+        dna,
+        selectedPlan: result.plans[0],
+        result,
+      });
+
       setTimeout(() => setDone(true), 500);
     } catch (e: any) {
       setError(e.message || "Agent pipeline failed");
     }
+  };
+
+  const handleStart = async () => {
+    if (!dest.trim() || !dna) return;
+    await runPipeline(dest.trim(), Number(days) || 7);
   };
 
   if (error) {

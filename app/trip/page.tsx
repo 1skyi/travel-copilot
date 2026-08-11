@@ -1,17 +1,21 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Compass, ArrowRight } from "lucide-react";
+import { MapPin, Compass, ArrowRight, Sparkles, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TripPlan } from "@/types/plan";
+import { Card, CardContent } from "@/components/ui/card";
+import { Timeline, TimelineItem } from "@/components/Timeline";
+import { MapView } from "@/components/MapView";
+import { TripPlan, DailyTimeline } from "@/types/plan";
 import { TravelDNA } from "@/types/travel";
+import { ItineraryAgent } from "@/agents/ItineraryAgent";
 
 const timelineColors = ["#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#ef4444", "#06b6d4"];
 
-export default function TripPage() {
+function TripPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planIdx = Number(searchParams.get("plan")) || 0;
@@ -19,6 +23,7 @@ export default function TripPage() {
   const [plan, setPlan] = useState<TripPlan | null>(null);
   const [dna, setDNA] = useState<TravelDNA | null>(null);
   const [activeDay, setActiveDay] = useState(0);
+  const [highlightedActivity, setHighlightedActivity] = useState<number | null>(null);
 
   useEffect(() => {
     const rawPlans = sessionStorage.getItem("s3-plans");
@@ -39,6 +44,26 @@ export default function TripPage() {
     }
   }, [router, planIdx]);
 
+  // Generate daily timelines using ItineraryAgent
+  const dailyTimelines = useMemo(() => {
+    if (!plan || !dna) return [];
+    const agent = new ItineraryAgent();
+    return agent.generate({ plan, dna: { style: dna.style, pace: dna.pace, avoid: dna.avoid } });
+  }, [plan, dna]);
+
+  // Reset highlighted activity when changing days
+  const handleDayChange = (dayIndex: number) => {
+    setActiveDay(dayIndex);
+    setHighlightedActivity(null);
+  };
+
+  // Handle timeline item click — flash the map marker
+  const handleActivityClick = (index: number) => {
+    setHighlightedActivity(index);
+    // Auto-dismiss the pulse after 1.5s
+    setTimeout(() => setHighlightedActivity(null), 1500);
+  };
+
   if (!plan) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -47,12 +72,20 @@ export default function TripPage() {
     );
   }
 
-  const day = plan.route[activeDay];
+  const activeTimeline = dailyTimelines[activeDay];
+
+  // Convert to TimelineItem for the Timeline component
+  const timelineItems: TimelineItem[] = activeTimeline?.items.map((item) => ({
+    time: item.time,
+    title: item.title,
+    description: item.description,
+    type: (item.type === "photo" ? "activity" : item.type) as TimelineItem["type"],
+  })) || [];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-background/80 backdrop-blur sticky top-0 z-10">
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-background/80 backdrop-blur sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <MapPin className="h-4 w-4 text-primary" />
           <div>
@@ -61,150 +94,138 @@ export default function TripPage() {
               <Badge variant="secondary" className="text-[10px]">{plan.score} 分</Badge>
               <span className="text-[10px] text-muted-foreground">¥{plan.budget.toLocaleString()}</span>
               <span className="text-[10px] text-muted-foreground">{plan.route.length} 天</span>
+              <span className="text-[10px] text-muted-foreground">{plan.suitableFor}</span>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
           <Link href="/decision">
-            <Button variant="outline" size="sm" className="text-xs h-7">AI 建议</Button>
+            <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
+              <Sparkles className="h-3 w-3" />AI 建议
+            </Button>
           </Link>
-          <Link href="/journey">
-            <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs">
+          <Link href={"/journey?day=" + activeDay + "&plan=" + planIdx}>
+            <Button size="sm" className="gap-1.5 h-7 text-xs">
               <Compass className="h-3 w-3" />
-              Journey
+              Journey 模式
+              <ArrowRight className="h-3 w-3" />
             </Button>
           </Link>
         </div>
       </div>
 
       {/* Map + Timeline */}
-      <div className="flex-1 grid lg:grid-cols-2">
-        {/* Left: Map */}
-        <div className="bg-muted/30 flex items-center justify-center min-h-[300px] lg:min-h-0 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-100/50 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/30" />
-
-          <svg className="relative w-3/4 h-3/4" viewBox="0 0 100 100">
-            <defs>
-              <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.1" className="text-muted-foreground/20" />
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#grid)" />
-
-            {/* Route polyline — all days */}
-            <polyline
-              points={plan.route.map((_, i) => {
-                const x = 15 + (70 / (plan.route.length - 1 || 1)) * i;
-                const y = 80 - (i % 3) * 25;
-                return `${x},${y}`;
-              }).join(" ")}
-              fill="none"
-              stroke={timelineColors[activeDay % timelineColors.length]}
-              strokeWidth="1.5"
-              strokeDasharray="4,2"
-              opacity="0.4"
-            />
-
-            {/* Waypoints */}
-            {plan.route.map((r, i) => {
-              const x = 15 + (70 / (plan.route.length - 1 || 1)) * i;
-              const y = 80 - (i % 3) * 25;
-              const isActive = i === activeDay;
-              return (
-                <g key={i}>
-                  {isActive && (
-                    <circle cx={x} cy={y} r="4" fill={timelineColors[activeDay % timelineColors.length]} opacity="0.2" className="animate-ping" />
-                  )}
-                  <circle cx={x} cy={y} r={isActive ? "2.5" : "1.5"} fill={isActive ? timelineColors[activeDay % timelineColors.length] : "#94a3b8"} />
-                  <text x={x} y={y - 3.5} textAnchor="middle" className="text-[3px] fill-muted-foreground">{r.location.slice(0, 4)}</text>
-                </g>
-              );
-            })}
-          </svg>
-
-          <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded shadow-sm">
-            Day {day?.day || activeDay + 1} · {day?.location || ""}
-          </div>
-          <div className="absolute bottom-4 right-4 flex flex-wrap gap-1.5">
-            {plan.tags.map((t) => (
-              <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
-            ))}
-          </div>
+      <div className="flex-1 grid lg:grid-cols-2 divide-x">
+        {/* Left: MapView */}
+        <div className="min-h-[350px] lg:min-h-0">
+          <MapView
+            plan={plan}
+            activeDay={activeDay}
+            onDayChange={handleDayChange}
+            pulseMarker={highlightedActivity !== null}
+          />
         </div>
 
         {/* Right: Timeline */}
-        <div className="overflow-auto p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground mb-4">
-            {plan.route.length} 天行程
-          </h2>
+        <div className="overflow-auto">
+          <div className="p-6">
+            {/* Day selector row */}
+            <div className="flex gap-1 mb-6 flex-wrap">
+              {plan.route.map((d, i) => (
+                <button
+                  key={d.day}
+                  onClick={() => handleDayChange(i)}
+                  className={
+                    "px-3 py-1.5 text-xs rounded-full transition-all " +
+                    (i === activeDay
+                      ? "text-white shadow-sm"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80")
+                  }
+                  style={i === activeDay ? { background: timelineColors[i % timelineColors.length] } : undefined}
+                >
+                  D{d.day}
+                </button>
+              ))}
+            </div>
 
-          {/* Day selector */}
-          <div className="flex gap-1 mb-6 flex-wrap">
-            {plan.route.map((d, i) => (
-              <button
-                key={d.day}
-                onClick={() => setActiveDay(i)}
-                className={
-                  "px-3 py-1.5 text-xs rounded-full transition-all " +
-                  (i === activeDay
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80")
-                }
-              >
-                Day {d.day}
-              </button>
-            ))}
-          </div>
-
-          {/* Day detail */}
-          {day && (
-            <>
-              <div className="mb-6 p-4 rounded-xl bg-muted/30 border">
-                <p className="text-xs text-muted-foreground">Day {day.day}</p>
-                <h3 className="text-xl font-bold mt-0.5">{day.location}</h3>
-              </div>
-
-              {/* Activities timeline */}
-              <div className="relative">
-                {day.activities.map((activity, idx) => {
-                  const isLast = idx === day.activities.length - 1;
-                  const colors = timelineColors;
-                  return (
-                    <div key={idx} className="relative flex gap-3 pb-6">
-                      {!isLast && (
-                        <div className="absolute left-[13px] top-8 bottom-0 w-px bg-border" />
-                      )}
-                      <div
-                        className="relative z-10 mt-1 h-[26px] w-[26px] shrink-0 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white"
-                        style={{ background: colors[activeDay % colors.length] }}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0 pt-0.5">
-                        <h4 className="text-sm font-medium leading-snug">{activity}</h4>
-                      </div>
+            {/* Day header card */}
+            {activeTimeline && (
+              <Card className="mb-6 border-0 shadow-none bg-gradient-to-r from-muted/50 to-transparent">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Day {activeTimeline.day}</p>
+                      <h3 className="text-xl font-bold mt-0.5">{activeTimeline.location}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {activeTimeline.items.length} 个活动 · {activeTimeline.items[0]?.time || ""} — {activeTimeline.items[activeTimeline.items.length - 1]?.time || ""}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                    {/* Activity type summary */}
+                    <div className="flex gap-1">
+                      {(["activity", "meal", "transport", "photo"] as const).map((t) => {
+                        const count = activeTimeline.items.filter((i) => i.type === t).length;
+                        if (count === 0) return null;
+                        const icons: Record<string, string> = { activity: "🎯", meal: "🍽️", transport: "🚗", photo: "📷" };
+                        return (
+                          <Badge key={t} variant="secondary" className="text-[10px] gap-0.5">
+                            {icons[t]}{count}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Plan selection buttons (if multiple plans in session) */}
-          <div className="flex gap-2 mt-6 pt-4 border-t">
-            <Link href="/decision">
-              <Button variant="outline" size="sm">AI 关键建议</Button>
-            </Link>
-            <Link href="/journey">
-              <Button size="sm" className="gap-1.5">
-                <Compass className="h-3.5 w-3.5" />
-                进入 Journey
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            </Link>
+            {/* Timeline — now clickable with map highlight */}
+            {timelineItems.length > 0 && (
+              <>
+                <p className="text-[10px] text-muted-foreground mb-2">点击活动 → 地图高亮定位</p>
+                <Timeline
+                  items={timelineItems}
+                  variant="vertical"
+                  onItemClick={handleActivityClick}
+                  highlightedIndex={highlightedActivity ?? undefined}
+                />
+              </>
+            )}
+
+            {/* Bottom actions */}
+            <div className="flex gap-2 mt-8 pt-4 border-t flex-wrap">
+              <Link href="/decision">
+                <Button variant="outline" size="sm" className="gap-1 text-xs">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  AI 关键建议
+                </Button>
+              </Link>
+              <Link href={"/report?plan=" + planIdx}>
+                <Button variant="outline" size="sm" className="gap-1 text-xs">
+                  <FileText className="h-3.5 w-3.5" />
+                  旅行报告
+                </Button>
+              </Link>
+              <Link href={"/journey?day=" + activeDay + "&plan=" + planIdx}>
+                <Button size="sm" className="gap-1.5">
+                  <Compass className="h-3.5 w-3.5" />
+                  进入 Journey 模式
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+export default function TripPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-4rem)]" />}>
+      <TripPageContent />
+    </Suspense>
+  );
+}
+
+

@@ -2,11 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Sparkles, MapPin } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Sparkles, MapPin, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlanCard } from "@/components/PlanCard";
 import { DecisionCardNew } from "@/components/DecisionCardNew";
+import { WhyCard } from "@/components/WhyCard";
+import { OptimizationCard } from "@/components/OptimizationCard";
 import { TripPlan, BudgetBreakdown, ReviewResult, DecisionOption } from "@/types/plan";
+import { TravelDNA } from "@/types/travel";
+
+function buildWhyReasons(plan: TripPlan, dna: TravelDNA | null): string[] {
+  const reasons: string[] = [];
+  if (dna) {
+    if (dna.style === "摄影旅行") reasons.push("路线优先安排日出日落拍摄点，符合摄影偏好");
+    if (dna.style === "美食旅行") reasons.push("沿途穿插地道美食体验，满足味蕾探索");
+    if (dna.pace === "慢慢体验") reasons.push("每天不超过 3 个核心景点，预留充足自由时间");
+    if (dna.avoid.includes("人多")) reasons.push("避开人流密集景区，选择小众深度打卡点");
+    if (dna.interest.includes("自然风光")) reasons.push("最大化自然风光覆盖，减少城市周转时间");
+  }
+  reasons.push("经 BudgetAgent 精确预算，ReviewAgent 路线合理性检查");
+  return reasons.slice(0, 4);
+}
+
+function buildDNAMatch(dna: TravelDNA | null): { trait: string; match: string }[] {
+  if (!dna) return [];
+  return [
+    { trait: "旅行风格", match: dna.style },
+    { trait: "节奏偏好", match: dna.pace },
+    { trait: "住宿偏好", match: dna.hotel },
+  ];
+}
 
 export default function PlansPage() {
   const router = useRouter();
@@ -15,6 +41,7 @@ export default function PlansPage() {
   const [reviews, setReviews] = useState<ReviewResult[]>([]);
   const [decisions, setDecisions] = useState<DecisionOption[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [dna, setDNA] = useState<TravelDNA | null>(null);
 
   useEffect(() => {
     const rawPlans = sessionStorage.getItem("s3-plans");
@@ -25,9 +52,11 @@ export default function PlansPage() {
       const rawBudgets = sessionStorage.getItem("s3-budgets");
       const rawReviews = sessionStorage.getItem("s3-reviews");
       const rawDecisions = sessionStorage.getItem("s3-decisions");
+      const rawDNA = localStorage.getItem("travel-dna");
       if (rawBudgets) setBudgets(JSON.parse(rawBudgets));
       if (rawReviews) setReviews(JSON.parse(rawReviews));
       if (rawDecisions) setDecisions(JSON.parse(rawDecisions));
+      if (rawDNA) setDNA(JSON.parse(rawDNA));
     } catch { router.push("/planning"); }
   }, []);
 
@@ -38,6 +67,16 @@ export default function PlansPage() {
   const selected = selectedIdx !== null ? plans[selectedIdx] : null;
   const selectedBudget = selectedIdx !== null ? budgets[selectedIdx] : null;
   const selectedReview = selectedIdx !== null ? reviews[selectedIdx] : null;
+
+  const whyReasons = selected ? buildWhyReasons(selected, dna) : [];
+  const dnaMatch = buildDNAMatch(dna);
+
+  // Build optimization issues from budget
+  const optimizationIssues = selectedBudget ? [
+    { label: "住宿降级", current: "¥" + selectedBudget.hotel, optimized: "¥" + Math.round(selectedBudget.hotel * 0.6), saving: Math.round(selectedBudget.hotel * 0.4) },
+    { label: "餐饮优化", current: "¥" + selectedBudget.food, optimized: "¥" + Math.round(selectedBudget.food * 0.7), saving: Math.round(selectedBudget.food * 0.3) },
+    { label: "交通替代", current: "¥" + selectedBudget.transport, optimized: "¥" + Math.round(selectedBudget.transport * 0.65), saving: Math.round(selectedBudget.transport * 0.35) },
+  ] : [];
 
   return (
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8">
@@ -50,6 +89,7 @@ export default function PlansPage() {
           <p className="text-sm text-muted-foreground mt-2">基于你的旅行 DNA，AI 多 Agent 分析生成</p>
         </div>
 
+        {/* Plan cards */}
         <div className="grid gap-4 md:grid-cols-3 mb-8">
           {plans.map((plan, i) => (
             <PlanCard key={plan.id} plan={plan} rank={i} selected={selectedIdx === i} onClick={() => setSelectedIdx(selectedIdx === i ? null : i)} />
@@ -58,6 +98,17 @@ export default function PlansPage() {
 
         {selected && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* WhyCard — AI recommendation reason */}
+            {whyReasons.length > 0 && (
+              <WhyCard
+                title={selectedIdx === 0 ? "AI 首选推荐" : "AI 备选方案"}
+                reasons={whyReasons}
+                dnaMatch={dnaMatch}
+                score={selected.score}
+              />
+            )}
+
+            {/* Budget breakdown */}
             {selectedBudget && (
               <div className="p-4 rounded-xl border bg-muted/30">
                 <h3 className="text-sm font-semibold mb-3">BudgetAgent 预算明细</h3>
@@ -70,10 +121,20 @@ export default function PlansPage() {
                   <span className="text-muted-foreground">总预算</span>
                   <span className="text-lg font-bold">¥{selectedBudget.total.toLocaleString()}</span>
                 </div>
-                {selectedBudget.note && <p className="text-[10px] text-muted-foreground mt-1">{selectedBudget.note}</p>}
               </div>
             )}
 
+            {/* OptimizationCard */}
+            {optimizationIssues.length > 0 && selectedBudget && (
+              <OptimizationCard
+                title="预算优化方案"
+                currentBudget={selectedBudget.total}
+                issues={optimizationIssues}
+                onApply={() => {}}
+              />
+            )}
+
+            {/* Review warnings */}
             {selectedReview && (selectedReview.warnings.length > 0 || selectedReview.suggestions.length > 0) && (
               <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
                 <h3 className="text-sm font-semibold mb-2">ReviewAgent 检查 · 评分 {selectedReview.score}</h3>
@@ -82,6 +143,7 @@ export default function PlansPage() {
               </div>
             )}
 
+            {/* Decision cards */}
             {decisions.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold mb-3">AI 关键决策建议</h3>
@@ -91,10 +153,16 @@ export default function PlansPage() {
               </div>
             )}
 
-            <div className="flex justify-center pt-4">
-              <Button size="lg" onClick={() => router.push(`/trip?plan=${selectedIdx}`)} className="gap-2">
+            {/* CTA buttons */}
+            <div className="flex gap-3 justify-center pt-4">
+              <Button size="lg" onClick={() => router.push("/trip?plan=" + selectedIdx)} className="gap-2">
                 <MapPin className="h-4 w-4" />查看详细行程 <ArrowRight className="h-4 w-4" />
               </Button>
+              <Link href={"/report?plan=" + selectedIdx}>
+                <Button variant="outline" size="lg" className="gap-2">
+                  <FileText className="h-4 w-4" />旅行报告
+                </Button>
+              </Link>
             </div>
           </div>
         )}
@@ -102,4 +170,3 @@ export default function PlansPage() {
     </div>
   );
 }
-
