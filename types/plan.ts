@@ -1,6 +1,8 @@
-﻿// ============================================================
+// ============================================================
 // Trip Plan — Core plan type for Planner Agent output
 // ============================================================
+
+import type { TripBrief } from "./trip";
 
 export interface RouteDay {
   day: number;
@@ -12,7 +14,7 @@ export interface TripPlan {
   id: string;
   title: string;
   score: number;
-  budget: number;
+  budget: number; // 始终等于用户 TripBrief 预算，不允许 Planner 自行修改
   tags: string[];
   route: RouteDay[];
   suitableFor: string;
@@ -20,16 +22,33 @@ export interface TripPlan {
 }
 
 // ============================================================
-// Budget Breakdown — BudgetAgent output
+// Budget Breakdown — 预算明细与硬约束检查
 // ============================================================
 
+export type BudgetSourceType = "EXTERNAL_DATA" | "AI_ESTIMATE" | "USER_INPUT" | "UNKNOWN";
+
+export interface BudgetLineItem {
+  amount: number;
+  minAmount: number;
+  maxAmount: number;
+  source: string;
+  sourceType: BudgetSourceType;
+}
+
 export interface BudgetBreakdown {
-  transport: number;
-  hotel: number;
-  food: number;
-  ticket: number;
-  other: number;
+  transport: BudgetLineItem;
+  accommodation: BudgetLineItem;
+  food: BudgetLineItem;
+  tickets: BudgetLineItem;
+  localTransport: BudgetLineItem;
+  other: BudgetLineItem;
+  knownCost: number;
+  estimatedMin: number;
+  estimatedMax: number;
+  remainingMin: number;
+  remainingMax: number;
   total: number;
+  overBudget: boolean;
   note?: string;
 }
 
@@ -76,6 +95,7 @@ export interface PlannerInput {
     interest: string[];
     budget: string;
   };
+  brief: TripBrief;
 }
 
 // ============================================================

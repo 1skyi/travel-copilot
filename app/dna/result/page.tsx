@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,7 @@ export default function DNAResultPage() {
       <DNAProfile dna={dna} profile={profile} />
       <div className="mt-8 flex gap-3">
         <Button variant="outline" size="lg" onClick={() => router.push("/dna")}>重新测试</Button>
-        <Button size="lg" className="gap-2" onClick={() => router.push("/planning")}>
+        <Button size="lg" className="gap-2" onClick={() => router.push(dna.destination ? "/planning?destination=" + encodeURIComponent(dna.destination) : "/planning")}>
           <Sparkles className="h-4 w-4" />开始 AI 规划<ArrowRight className="h-4 w-4" />
         </Button>
       </div>

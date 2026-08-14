@@ -1,4 +1,13 @@
-﻿import { TripPlan, PlannerInput } from "@/types/plan";
+import { TripPlan, PlannerInput } from "@/types/plan";
+import { getTotalBudget, getTravelerCount } from "@/types/trip";
+
+// ============================================================
+// USER CONSTRAINTS（硬约束，规划时不得违反）
+// - origin / destination / travelers / dates / budget
+// - 用户预算是硬约束，不得自行修改
+// - 如果真实数据表明预算不可行，必须告诉用户不可行
+// - 不得伪造数据来满足预算
+// ============================================================
 
 type RouteTemplate = { day: number; location: string; activities: string[] }[];
 
@@ -109,18 +118,71 @@ function getDefaultRoutes(days: number): RouteTemplate[] {
   return [base, base, base];
 }
 
+function buildTags(
+  isPhoto: boolean,
+  isFood: boolean,
+  brief: { interests: string[]; avoid: string[] },
+  photoFallback: string[],
+  defaultFallback: string[]
+): string[] {
+  const interestTagMap: Record<string, string> = {
+    photography: "摄影",
+    nature: "自然",
+    food: "美食",
+    culture: "人文",
+    shopping: "购物",
+    relax: "放松",
+    outdoor: "户外",
+  };
+  const avoidTagMap: Record<string, string> = {
+    crowded: "避开人多",
+    long_drive: "少开车",
+    early_rise: "不早起",
+    frequent_hotel_change: "少换酒店",
+    rush: "不赶路",
+    queue: "少排队",
+  };
+
+  const tags = new Set<string>();
+  brief.interests.forEach((i) => { if (interestTagMap[i]) tags.add(interestTagMap[i]); });
+  brief.avoid.forEach((a) => { if (avoidTagMap[a]) tags.add(avoidTagMap[a]); });
+
+  if (tags.size === 0) {
+    (isPhoto ? photoFallback : defaultFallback).forEach((t) => tags.add(t));
+  }
+  if (isFood && !tags.has("美食")) tags.add("美食");
+
+  return Array.from(tags).slice(0, 4);
+}
+
+function buildDesc(
+  destination: string,
+  days: number,
+  isPhoto: boolean,
+  brief: { transportation: string; travelers: number; budgetIncludesTransport: boolean }
+): string {
+  const transportText =
+    brief.transportation === "self_drive" ? "自驾"
+    : brief.transportation === "public" ? "公共交通"
+    : brief.transportation === "charter" ? "包车"
+    : "AI 推荐交通";
+  const parts = [destination + " " + days + "天"];
+  parts.push(isPhoto ? "预留充足拍摄时间" : "经典景点全覆盖");
+  parts.push(transportText + " · " + brief.travelers + "人");
+  if (!brief.budgetIncludesTransport) parts.push("预算不含往返交通");
+  return parts.join("，") + "。";
+}
+
 export class PlannerAgent {
   generate(input: PlannerInput): TripPlan[] {
-    const { destination, days, dna } = input;
-    const isPhoto = dna.style === "摄影旅行";
-    const isFood = dna.style === "美食旅行";
-    const isSlow = dna.pace === "慢慢体验";
-    const budgetLevel = dna.budget || "medium";
+    const { destination, days, dna, brief } = input;
+    const preferences = brief.preferences;
+    const totalBudget = getTotalBudget(brief);
+    const travelerCount = getTravelerCount(brief.travelers);
+    const isPhoto = preferences.interests.includes("photography") || dna.style === "摄影旅行";
+    const isFood = preferences.interests.includes("food") || dna.style === "美食旅行";
 
-    const destData = destinations[destination] || { routes: getDefaultRoutes(days), budgetBase: 8000 };
-    const base = destData.budgetBase;
-    const budgetMap = { low: Math.round(base * 0.55), medium: Math.round(base * 0.8), high: base };
-    const b = budgetMap[budgetLevel as keyof typeof budgetMap] || base;
+    const destData = destinations[destination] || { routes: getDefaultRoutes(days), budgetBase: 0 };
 
     // Slice routes to match requested days
     const r0 = destData.routes[0].slice(0, days);
@@ -140,16 +202,20 @@ export class PlannerAgent {
       {
         id: "photo",
         title: isPhoto ? "极致摄影路线" : "经典风光路线",
-        score: 95, budget: b,
-        tags: isPhoto ? ["日落", "小众", "星空"] : ["自然", "经典", "必去"],
+        score: 95, budget: totalBudget,
+        tags: buildTags(isPhoto, isFood, preferences, ["日落", "小众", "星空"], ["自然", "经典", "必去"]),
         route: withPhoto(r0),
         suitableFor: isPhoto ? "📷 摄影 · 🌄 自然" : "🌄 自然风光爱好者",
-        desc: destination + " " + days + "天精华，" + (isPhoto ? "预留充足拍摄时间" : "经典景点全覆盖") + "。",
+        desc: buildDesc(destination, days, isPhoto, {
+          transportation: preferences.transportation,
+          travelers: travelerCount,
+          budgetIncludesTransport: preferences.budgetIncludesTransport,
+        }),
       },
       {
         id: "classic",
         title: "经典全景路线",
-        score: 92, budget: Math.round(b * 0.85),
+        score: 92, budget: totalBudget,
         tags: ["全景", "经典"],
         route: r1,
         suitableFor: "🌟 经典体验",
@@ -158,7 +224,7 @@ export class PlannerAgent {
       {
         id: "budget",
         title: "性价比路线",
-        score: 88, budget: Math.round(b * 0.55),
+        score: 88, budget: totalBudget,
         tags: ["性价比", "深度"],
         route: r2,
         suitableFor: "💰 性价比之选",

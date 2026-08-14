@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ interface LocationMarkerProps {
   color?: string;
   onClick?: () => void;
   className?: string;
+  showLabel?: boolean;
 }
 
 export function LocationMarker({
@@ -21,6 +22,7 @@ export function LocationMarker({
   color = "#6366f1",
   onClick,
   className,
+  showLabel = true,
 }: LocationMarkerProps) {
   return (
     <button
@@ -52,18 +54,20 @@ export function LocationMarker({
         </div>
       </div>
 
-      <span
-        className={cn(
-          "text-xs transition-colors",
-          isActive ? "font-semibold text-foreground" : "text-muted-foreground",
-          isNext && "text-foreground font-medium"
-        )}
-      >
-        {name}
-      </span>
+      {showLabel && (
+        <span
+          className={cn(
+            "text-xs transition-colors",
+            isActive ? "font-semibold text-foreground" : "text-muted-foreground",
+            isNext && "text-foreground font-medium"
+          )}
+        >
+          {name}
+        </span>
+      )}
 
       {/* Hover tooltip */}
-      <div className="absolute left-1/2 -translate-x-1/2 -top-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+      <div className="absolute left-1/2 -translate-x-1/2 -top-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
         <span className="text-[10px] bg-popover border px-1.5 py-0.5 rounded shadow whitespace-nowrap">
           {name}
         </span>

@@ -1,179 +1,258 @@
-﻿"use client";
+"use client";
 
-import { useState, useMemo } from "react";
-import { MapPin } from "lucide-react";
+import { useMemo } from "react";
+import { Loader2, TriangleAlert, Navigation, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LocationMarker } from "@/components/LocationMarker";
-import { TripPlan } from "@/types/plan";
+import { formatDistance, formatDuration } from "@/lib/travel-data/utils";
+import type { GeoLocation, RouteResult } from "@/types/location";
 import { cn } from "@/lib/utils";
 
 interface MapViewProps {
-  plan: TripPlan;
+  locations: GeoLocation[];
+  routes: RouteResult[];
   activeDay: number;
   onDayChange: (dayIndex: number) => void;
+  loading?: boolean;
+  error?: string;
   pulseMarker?: boolean;
+  onRetry?: () => void;
 }
 
 const dayColors = ["#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#ef4444", "#06b6d4"];
 
-const CHINA_COORDS: Record<string, [number, number]> = {
-  "乌鲁木齐": [43.8, 87.6],
-  "赛里木湖": [44.6, 81.2],
-  "伊宁": [43.9, 81.3],
-  "那拉提": [43.3, 84.0],
-  "巴音布鲁克": [43.0, 84.2],
-  "独库公路": [43.5, 84.5],
-  "天山天池": [43.9, 88.1],
-  "吐鲁番": [42.9, 89.2],
-  "库尔勒": [41.7, 86.1],
-  "南山牧场": [43.4, 87.4],
-  "昆明": [25.0, 102.7],
-  "大理": [25.6, 100.2],
-  "丽江": [26.8, 100.2],
-  "玉龙雪山": [27.0, 100.2],
-  "香格里拉": [27.8, 99.7],
-  "泸沽湖": [27.7, 100.8],
-  "东京": [35.7, 139.7],
-  "镰仓": [35.3, 139.5],
-  "箱根": [35.2, 139.0],
-  "京都": [35.0, 135.8],
-  "大阪": [34.7, 135.5],
-  "富士山": [35.4, 138.7],
-  "奈良": [34.7, 135.8],
-};
+export function MapView({
+  locations,
+  routes,
+  activeDay,
+  onDayChange,
+  loading = false,
+  error,
+  pulseMarker = false,
+  onRetry,
+}: MapViewProps) {
+  const projection = useMemo(() => {
+    if (locations.length === 0) return null;
 
-function getCoords(name: string): [number, number] {
-  for (const [key, coords] of Object.entries(CHINA_COORDS)) {
-    if (name.includes(key) || key.includes(name)) return coords;
-  }
-  const hash = name.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-  return [30 + (hash % 20), 100 + ((hash * 7) % 30)];
-}
+    const longitudes = locations.map((loc) => loc.longitude);
+    const latitudes = locations.map((loc) => loc.latitude);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
 
-export function MapView({ plan, activeDay, onDayChange, pulseMarker = false }: MapViewProps) {
-  const allCoords = useMemo(() => plan.route.map((r) => getCoords(r.location)), [plan]);
+    const lngSpan = Math.max(maxLng - minLng, 0.01);
+    const latSpan = Math.max(maxLat - minLat, 0.01);
+    const padLng = Math.max(lngSpan * 0.18, 0.25);
+    const padLat = Math.max(latSpan * 0.18, 0.25);
 
-  const allLatLngs = useMemo(() => {
-    const lats = allCoords.map((c) => c[0]);
-    const lngs = allCoords.map((c) => c[1]);
-    return {
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats),
-      minLng: Math.min(...lngs),
-      maxLng: Math.max(...lngs),
-    };
-  }, [allCoords]);
+    const totalLng = lngSpan + padLng * 2;
+    const totalLat = latSpan + padLat * 2;
 
-  const padding = 2;
-  const latRange = allLatLngs.maxLat - allLatLngs.minLat + padding * 2 || 10;
-  const lngRange = allLatLngs.maxLng - allLatLngs.minLng + padding * 2 || 10;
-  const scaleX = (lng: number) => 5 + ((lng - allLatLngs.minLng + padding) / lngRange) * 90;
-  const scaleY = (lat: number) => 95 - ((lat - allLatLngs.minLat + padding) / latRange) * 90;
+    const scaleX = (lng: number) => 5 + ((lng - minLng + padLng) / totalLng) * 90;
+    const scaleY = (lat: number) => 95 - ((lat - minLat + padLat) / totalLat) * 90;
 
-  const color = dayColors[activeDay % dayColors.length];
+    return { scaleX, scaleY };
+  }, [locations]);
+
+  const nameIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    locations.forEach((location, index) => map.set(location.name, index));
+    return map;
+  }, [locations]);
+
+  const routeSegmentIndex = (route: RouteResult): number => {
+    const originIndex = nameIndex.get(route.origin.name);
+    const destinationIndex = nameIndex.get(route.destination.name);
+    if (originIndex === undefined || destinationIndex === undefined) return -1;
+    return destinationIndex === originIndex + 1 ? originIndex : -1;
+  };
+
+  const activeRoute = routes.find((route) => routeSegmentIndex(route) === activeDay);
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="h-full flex flex-col overflow-hidden">
       <CardContent className="p-0 flex-1 flex flex-col">
         {/* Day Tabs */}
         <div className="flex gap-1 px-3 py-2 border-b overflow-x-auto">
-          {plan.route.map((d, i) => (
+          {locations.map((location, index) => (
             <button
-              key={d.day}
-              onClick={() => onDayChange(i)}
+              key={location.id + "-" + index}
+              onClick={() => onDayChange(index)}
               className={cn(
                 "px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-all flex items-center gap-1.5",
-                i === activeDay
+                index === activeDay
                   ? "text-white shadow-sm"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
-              style={i === activeDay ? { background: dayColors[i % dayColors.length] } : undefined}
+              style={index === activeDay ? { background: dayColors[index % dayColors.length] } : undefined}
             >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: i === activeDay ? "white" : dayColors[i % dayColors.length] }} />
-              D{d.day}
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: index === activeDay ? "white" : dayColors[index % dayColors.length] }}
+              />
+              D{index + 1}
             </button>
           ))}
         </div>
 
         {/* Map Area */}
-        <div className="relative flex-1 min-h-[280px] bg-muted/20 overflow-hidden">
-          {/* Grid + Route SVG */}
-          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <pattern id="mapGridV2" width="8" height="8" patternUnits="userSpaceOnUse">
-                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="currentColor" strokeWidth="0.08" className="text-muted-foreground/15" />
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#mapGridV2)" />
+        <div className="relative flex-1 min-h-[300px] bg-muted/20 overflow-hidden">
+          {loading ? (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">正在获取真实路线...</p>
+            </div>
+          ) : locations.length === 0 && error ? (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm px-6 text-center">
+              <TriangleAlert className="h-6 w-6 text-amber-500" />
+              <p className="text-sm font-medium">{error}</p>
+              <p className="text-xs text-muted-foreground">路线数据暂时无法获取，请稍后重试</p>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  重新获取
+                </button>
+              )}
+            </div>
+          ) : locations.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">暂无可展示的行程地点</p>
+            </div>
+          ) : (
+            <svg
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <pattern id="realMapGrid" width="8" height="8" patternUnits="userSpaceOnUse">
+                  <path
+                    d="M 8 0 L 0 0 0 8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="0.08"
+                    className="text-muted-foreground/15"
+                  />
+                </pattern>
+              </defs>
+              <rect width="100" height="100" fill="url(#realMapGrid)" />
 
-            {/* Full route line (faded) */}
-            <polyline
-              points={allCoords.map((c) => scaleX(c[1]) + "," + scaleY(c[0])).join(" ")}
-              fill="none" stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="3,2" opacity="0.35"
-            />
+              {/* Real route polylines from AMAP */}
+              {routes.map((route, index) => {
+                const segmentIndex = routeSegmentIndex(route);
+                const color = segmentIndex >= 0 ? dayColors[segmentIndex % dayColors.length] : "#94a3b8";
+                const isActive = segmentIndex === activeDay;
+                const points = route.polyline
+                  .map((point) => projection!.scaleX(point.longitude) + "," + projection!.scaleY(point.latitude))
+                  .join(" ");
 
-            {/* Active day segment */}
-            {activeDay < plan.route.length - 1 && (
-              <polyline
-                points={scaleX(allCoords[activeDay][1]) + "," + scaleY(allCoords[activeDay][0]) + " " + scaleX(allCoords[activeDay + 1][1]) + "," + scaleY(allCoords[activeDay + 1][0])}
-                fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.7"
-              />
-            )}
+                return (
+                  <polyline
+                    key={route.origin.name + "-" + route.destination.name + "-" + index}
+                    points={points}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={isActive ? 1.6 : 0.9}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={isActive ? 0.9 : 0.45}
+                    className={isActive ? "animate-pulse" : undefined}
+                  />
+                );
+              })}
+            </svg>
+          )}
 
-            {/* Pulse highlight line */}
-            <polyline
-              points={scaleX(allCoords[activeDay][1]) + "," + scaleY(allCoords[activeDay][0]) + " " + (activeDay < plan.route.length - 1 ? scaleX(allCoords[activeDay + 1][1]) + "," + scaleY(allCoords[activeDay + 1][0]) : "")}
-              fill="none" stroke={color} strokeWidth="0.4" className="animate-pulse" strokeLinecap="round"
-            />
-          </svg>
+          {error && locations.length > 0 && (
+            <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-amber-50/95 px-3 py-1.5 text-xs text-amber-700 shadow-sm">
+              <TriangleAlert className="h-3.5 w-3.5" />
+              <span>{error}</span>
+              {onRetry && (
+                <button onClick={onRetry} className="inline-flex items-center gap-1 font-medium underline underline-offset-2">
+                  <RefreshCw className="h-3 w-3" />重试
+                </button>
+              )}
+            </div>
+          )}
 
-          {/* Waypoint markers — using LocationMarker component */}
-          {allCoords.map((coords, i) => {
-            const x = scaleX(coords[1]);
-            const y = scaleY(coords[0]);
-            const isActive = i === activeDay;
-            const c = dayColors[i % dayColors.length];
+          {/* Markers */}
+          {!loading && projection && locations.map((location, index) => {
+            const isActive = index === activeDay;
+            const isNext = index === activeDay + 1;
+            const color = dayColors[index % dayColors.length];
+            const left = projection.scaleX(location.longitude);
+            const top = projection.scaleY(location.latitude);
 
             return (
               <div
-                key={i}
+                key={location.id + "-" + index}
                 className="absolute z-10"
-                style={{ left: x + "%", top: y + "%", transform: "translate(-50%, -50%)" }}
+                style={{ left: left + "%", top: top + "%", transform: "translate(-50%, -50%)" }}
               >
-                {/* Extra pulse ring when highlighted from timeline click */}
                 {isActive && pulseMarker && (
                   <div
                     className="absolute rounded-full animate-ping opacity-40"
-                    style={{ width: "36px", height: "36px", left: "-18px", top: "-18px", background: c }}
+                    style={{ width: "36px", height: "36px", left: "-18px", top: "-18px", background: color }}
                   />
                 )}
 
                 <LocationMarker
-                  name={plan.route[i].location}
+                  name={location.name}
                   isActive={isActive}
-                  isNext={i === activeDay + 1}
-                  index={i + 1}
-                  color={c}
-                  onClick={() => onDayChange(i)}
+                  isNext={isNext}
+                  index={index + 1}
+                  color={color}
+                  onClick={() => onDayChange(index)}
+                  showLabel={false}
                 />
 
-                {/* Tooltip on hover */}
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                  <div className="bg-popover border text-popover-foreground px-2 py-1 rounded-md shadow text-[10px] whitespace-nowrap font-medium">
-                    {plan.route[i].location}
-                    <span className="ml-1 text-muted-foreground">D{plan.route[i].day}</span>
+                {(isActive || isNext) && (
+                  <div className="absolute left-1/2 -translate-x-1/2 top-3 mt-1 bg-background/90 border rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap shadow-sm">
+                    {location.name}
                   </div>
-                </div>
+                )}
               </div>
             );
           })}
+
+          {/* Route info */}
+          {!loading && locations.length > 0 && (
+            <div className="absolute left-3 bottom-3 bg-background/90 rounded-lg border px-3 py-2 text-xs shadow-sm max-w-[70%]">
+              <div className="flex items-center gap-1.5 mb-1 text-muted-foreground">
+                <Navigation className="h-3 w-3" />
+                <span>真实路线 · 来源 {locations[activeDay]?.source || "AMAP"}</span>
+              </div>
+              {activeRoute ? (
+                <p className="font-medium">
+                  {activeRoute.origin.name} → {activeRoute.destination.name}
+                  <span className="ml-2 text-primary">
+                    {formatDistance(activeRoute.distance.value)} · 驾车 {formatDuration(activeRoute.duration.value)}
+                  </span>
+                </p>
+              ) : activeDay < locations.length - 1 ? (
+                <p className="text-muted-foreground">当前路段路线数据未获取</p>
+              ) : (
+                <p className="text-muted-foreground">已到达本次行程终点</p>
+              )}
+            </div>
+          )}
 
           {/* Legend */}
           <div className="absolute top-3 right-3 bg-background/90 rounded-lg border px-3 py-2 text-[10px] shadow-sm">
             <div className="font-semibold mb-1.5">图例</div>
             <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1"><div className="h-2 w-2 rounded-full" style={{ background: color }} /><span>当前日</span></div>
-              <div className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-slate-400/50" /><span>其他日</span></div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full" style={{ background: dayColors[activeDay % dayColors.length] }} />
+                <span>当前日</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-slate-400/50" />
+                <span>其他日</span>
+              </div>
             </div>
           </div>
         </div>

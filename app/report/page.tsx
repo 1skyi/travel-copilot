@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
@@ -65,7 +65,8 @@ function ReportContent() {
       const rawReviews = sessionStorage.getItem("s3-reviews");
       if (rawBudgets) {
         const budgets: BudgetBreakdown[] = JSON.parse(rawBudgets);
-        setBudget(budgets[idx] || null);
+        const valid = Array.isArray(budgets) && budgets[idx]?.accommodation?.amount !== undefined;
+        setBudget(valid ? budgets[idx] : null);
       }
       if (rawReviews) {
         const reviews: ReviewResult[] = JSON.parse(rawReviews);
@@ -125,7 +126,7 @@ function ReportContent() {
         <div className="grid grid-cols-3 gap-3">
           {[
             { icon: CalendarDays, label: "天数", value: plan.route.length + " 天" },
-            { icon: Wallet, label: "总预算", value: "¥" + (budget?.total || plan.budget).toLocaleString() },
+            { icon: Wallet, label: "预算估算", value: "¥" + (budget?.total || plan.budget).toLocaleString() },
             { icon: TrendingUp, label: "AI评分", value: plan.score + " 分" },
           ].map((stat) => (
             <Card key={stat.label} className="text-center">
@@ -164,24 +165,30 @@ function ReportContent() {
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 预算明细
               </h3>
-              <div className="grid grid-cols-5 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center">
                 {[
-                  { label: "交通", val: budget.transport },
-                  { label: "住宿", val: budget.hotel },
-                  { label: "餐饮", val: budget.food },
-                  { label: "门票", val: budget.ticket },
-                  { label: "其他", val: budget.other },
+                  { label: "长途交通", val: budget.transport.amount },
+                  { label: "住宿", val: budget.accommodation.amount },
+                  { label: "餐饮", val: budget.food.amount },
+                  { label: "门票", val: budget.tickets.amount },
+                  { label: "当地交通", val: budget.localTransport.amount },
+                  { label: "其他", val: budget.other.amount },
                 ].map((item) => (
                   <div key={item.label} className="p-2 rounded-lg bg-muted/30">
                     <p className="text-[10px] text-muted-foreground">{item.label}</p>
-                    <p className="text-sm font-semibold mt-0.5">¥{item.val}</p>
+                    <p className="text-sm font-semibold mt-0.5">¥{item.val.toLocaleString()}</p>
                   </div>
                 ))}
               </div>
+              {budget.overBudget && (
+                <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-600">
+                  ⚠️ 预算不足：预计最低 ¥{budget.estimatedMin.toLocaleString()}，剩余 ¥{budget.remainingMin < 0 ? (-budget.remainingMin).toLocaleString() : "0"}。
+                </div>
+              )}
               <Separator className="my-3" />
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">总计</span>
-                <span className="font-bold text-lg">¥{budget.total.toLocaleString()}</span>
+                <span className="text-muted-foreground">估算区间</span>
+                <span className="font-semibold">¥{budget.estimatedMin.toLocaleString()} ~ ¥{budget.estimatedMax.toLocaleString()}</span>
               </div>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,6 +12,8 @@ import { MapView } from "@/components/MapView";
 import { TripPlan, DailyTimeline } from "@/types/plan";
 import { TravelDNA } from "@/types/travel";
 import { ItineraryAgent } from "@/agents/ItineraryAgent";
+import { useTravelMapData } from "@/hooks/useTravelMapData";
+import { sanitizeLocationName } from "@/lib/travel-data/utils";
 
 const timelineColors = ["#6366f1", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#ef4444", "#06b6d4"];
 
@@ -43,6 +45,13 @@ function TripPageContent() {
       router.push("/planning");
     }
   }, [router, planIdx]);
+
+  // Real map data: 行程地点名 → 真实坐标 → 真实驾驶路线
+  const dayLocations = useMemo(
+    () => (plan ? plan.route.map((day) => sanitizeLocationName(day.location)) : []),
+    [plan]
+  );
+  const mapData = useTravelMapData(dayLocations);
 
   // Generate daily timelines using ItineraryAgent
   const dailyTimelines = useMemo(() => {
@@ -119,10 +128,14 @@ function TripPageContent() {
         {/* Left: MapView */}
         <div className="min-h-[350px] lg:min-h-0">
           <MapView
-            plan={plan}
+            locations={mapData.locations}
+            routes={mapData.routes}
             activeDay={activeDay}
             onDayChange={handleDayChange}
+            loading={mapData.loading}
+            error={mapData.error ?? undefined}
             pulseMarker={highlightedActivity !== null}
+            onRetry={mapData.retry}
           />
         </div>
 

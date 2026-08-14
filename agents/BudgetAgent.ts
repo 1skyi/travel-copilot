@@ -1,10 +1,12 @@
-﻿import { TripPlan, BudgetBreakdown } from "@/types/plan";
+import { TripPlan, BudgetBreakdown, BudgetLineItem } from "@/types/plan";
 
+// 预算硬约束：只读取用户 TripBrief 计算的 totalBudget，
+// 不修改用户预算，也不为满足预算而伪造真实成本。
 export class BudgetAgent {
-  estimate(plan: TripPlan): BudgetBreakdown {
+  estimate(plan: TripPlan, totalBudget: number, travelerCount: number): BudgetBreakdown {
     const days = plan.route.length;
+    const people = Math.max(1, travelerCount);
 
-    // Count location changes (each change = transport cost)
     let locationChanges = 0;
     for (let i = 1; i < plan.route.length; i++) {
       if (plan.route[i].location !== plan.route[i - 1].location) {
@@ -12,28 +14,57 @@ export class BudgetAgent {
       }
     }
 
-    // Base costs
-    const transportPerChange = plan.budget < 6000 ? 200 : plan.budget > 10000 ? 600 : 400;
-    const transport = 500 + locationChanges * transportPerChange;
-
-    const hotelPerNight = plan.budget < 6000 ? 120 : plan.budget > 10000 ? 500 : 300;
-    const hotel = days * hotelPerNight;
-
-    const foodPerDay = plan.budget < 6000 ? 80 : plan.budget > 10000 ? 250 : 150;
-    const food = days * foodPerDay;
-
-    // Count activities that might need tickets
     const activityCount = plan.route.reduce((s, d) => s + d.activities.length, 0);
-    const ticket = activityCount * 50;
 
-    const other = Math.round((transport + hotel + food + ticket) * 0.1);
+    // 当前阶段没有航班/酒店/铁路/门票真实 API，因此全部为 AI 估算。
+    // sourceType 仍显式标记，禁止无来源金额进入 UI。
+    const line = (
+      amount: number,
+      source: string = "AI_ESTIMATE",
+      minAmount: number = Math.round(amount * 0.85),
+      maxAmount: number = Math.round(amount * 1.2)
+    ): BudgetLineItem => ({
+      amount: Math.round(amount),
+      minAmount,
+      maxAmount,
+      source,
+      sourceType: "AI_ESTIMATE",
+    });
+
+    const transport = line(locationChanges * 380 * people + 400);
+    const accommodation = line(days * (220 + people * 60));
+    const food = line(days * people * 120);
+    const tickets = line(activityCount * 55);
+    const localTransport = line(days * people * 70);
+    const other = line((locationChanges > 0 ? 300 : 150) + days * 40);
+
+    const items = [transport, accommodation, food, tickets, localTransport, other];
+    const knownCost = 0; // 本阶段没有 EXTERNAL_DATA，已知成本为 0
+    const estimatedMin = items.reduce((sum, item) => sum + item.minAmount, 0);
+    const estimatedMax = items.reduce((sum, item) => sum + item.maxAmount, 0);
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+
+    const remainingMin = totalBudget - estimatedMax;
+    const remainingMax = totalBudget - estimatedMin;
+    const overBudget = estimatedMin > totalBudget;
 
     return {
-      transport, hotel, food, ticket, other,
-      total: transport + hotel + food + ticket + other,
-      note: locationChanges > 0
-        ? "换城 " + locationChanges + " 次，" + (locationChanges > 3 ? "交通费用较高" : "路线合理")
-        : "单城深度游，交通费用低",
+      transport,
+      accommodation,
+      food,
+      tickets,
+      localTransport,
+      other,
+      knownCost,
+      estimatedMin,
+      estimatedMax,
+      remainingMin,
+      remainingMax,
+      total,
+      overBudget,
+      note: overBudget
+        ? "当前预算无法覆盖该行程。建议：缩短天数、提高预算、降低交通成本，或更换目的地。"
+        : "预算覆盖正常。",
     };
   }
 }

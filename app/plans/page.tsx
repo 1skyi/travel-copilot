@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -53,7 +53,12 @@ export default function PlansPage() {
       const rawReviews = sessionStorage.getItem("s3-reviews");
       const rawDecisions = sessionStorage.getItem("s3-decisions");
       const rawDNA = localStorage.getItem("travel-dna");
-      if (rawBudgets) setBudgets(JSON.parse(rawBudgets));
+      if (rawBudgets) {
+        const parsedBudgets = JSON.parse(rawBudgets);
+        if (Array.isArray(parsedBudgets) && parsedBudgets[0]?.accommodation?.amount !== undefined) {
+          setBudgets(parsedBudgets);
+        }
+      }
       if (rawReviews) setReviews(JSON.parse(rawReviews));
       if (rawDecisions) setDecisions(JSON.parse(rawDecisions));
       if (rawDNA) setDNA(JSON.parse(rawDNA));
@@ -64,6 +69,8 @@ export default function PlansPage() {
     return <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   }
 
+  const anyOverBudget = budgets.some((budget) => budget.overBudget);
+
   const selected = selectedIdx !== null ? plans[selectedIdx] : null;
   const selectedBudget = selectedIdx !== null ? budgets[selectedIdx] : null;
   const selectedReview = selectedIdx !== null ? reviews[selectedIdx] : null;
@@ -73,9 +80,9 @@ export default function PlansPage() {
 
   // Build optimization issues from budget
   const optimizationIssues = selectedBudget ? [
-    { label: "住宿降级", current: "¥" + selectedBudget.hotel, optimized: "¥" + Math.round(selectedBudget.hotel * 0.6), saving: Math.round(selectedBudget.hotel * 0.4) },
-    { label: "餐饮优化", current: "¥" + selectedBudget.food, optimized: "¥" + Math.round(selectedBudget.food * 0.7), saving: Math.round(selectedBudget.food * 0.3) },
-    { label: "交通替代", current: "¥" + selectedBudget.transport, optimized: "¥" + Math.round(selectedBudget.transport * 0.65), saving: Math.round(selectedBudget.transport * 0.35) },
+    { label: "住宿降级", current: "¥" + selectedBudget.accommodation.amount, optimized: "¥" + selectedBudget.accommodation.minAmount, saving: selectedBudget.accommodation.amount - selectedBudget.accommodation.minAmount },
+    { label: "餐饮优化", current: "¥" + selectedBudget.food.amount, optimized: "¥" + selectedBudget.food.minAmount, saving: selectedBudget.food.amount - selectedBudget.food.minAmount },
+    { label: "交通替代", current: "¥" + selectedBudget.transport.amount, optimized: "¥" + selectedBudget.transport.minAmount, saving: selectedBudget.transport.amount - selectedBudget.transport.minAmount },
   ] : [];
 
   return (
@@ -88,6 +95,12 @@ export default function PlansPage() {
           <h1 className="text-2xl font-bold tracking-tight">为你生成 3 个旅行方案</h1>
           <p className="text-sm text-muted-foreground mt-2">基于你的旅行 DNA，AI 多 Agent 分析生成</p>
         </div>
+
+        {anyOverBudget && (
+          <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600">
+            ⚠️ 你的预算可能不足以覆盖该行程。用户预算是硬约束，AI 不会伪造更低价格；请考虑缩短天数、提高预算、降低交通成本或更换目的地。
+          </div>
+        )}
 
         {/* Plan cards */}
         <div className="grid gap-4 md:grid-cols-3 mb-8">
@@ -112,14 +125,26 @@ export default function PlansPage() {
             {selectedBudget && (
               <div className="p-4 rounded-xl border bg-muted/30">
                 <h3 className="text-sm font-semibold mb-3">BudgetAgent 预算明细</h3>
-                <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                  {[{ label: "交通", val: selectedBudget.transport }, { label: "住宿", val: selectedBudget.hotel }, { label: "餐饮", val: selectedBudget.food }, { label: "门票", val: selectedBudget.ticket }, { label: "其他", val: selectedBudget.other }].map((item) => (
-                    <div key={item.label}><div className="text-muted-foreground">{item.label}</div><div className="font-semibold mt-0.5">¥{item.val}</div></div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  {[
+                    { label: "长途交通", val: selectedBudget.transport.amount },
+                    { label: "住宿", val: selectedBudget.accommodation.amount },
+                    { label: "餐饮", val: selectedBudget.food.amount },
+                    { label: "门票", val: selectedBudget.tickets.amount },
+                    { label: "当地交通", val: selectedBudget.localTransport.amount },
+                    { label: "其他", val: selectedBudget.other.amount },
+                  ].map((item) => (
+                    <div key={item.label}><div className="text-muted-foreground">{item.label}</div><div className="font-semibold mt-0.5">¥{item.val.toLocaleString()}</div></div>
                   ))}
                 </div>
+                {selectedBudget.overBudget && (
+                  <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-600">
+                    ⚠️ 预算不足：预计最低 ¥{selectedBudget.estimatedMin.toLocaleString()}，超出你的预算 ¥{selectedBudget.remainingMin < 0 ? (-selectedBudget.remainingMin).toLocaleString() : "0"}。
+                  </div>
+                )}
                 <div className="flex justify-between items-center mt-3 pt-3 border-t text-sm">
-                  <span className="text-muted-foreground">总预算</span>
-                  <span className="text-lg font-bold">¥{selectedBudget.total.toLocaleString()}</span>
+                  <span className="text-muted-foreground">估算区间</span>
+                  <span className="font-semibold">¥{selectedBudget.estimatedMin.toLocaleString()} ~ ¥{selectedBudget.estimatedMax.toLocaleString()}</span>
                 </div>
               </div>
             )}

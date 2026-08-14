@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Send, MapPin, Zap, Play, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Memory } from "@/lib/memory";
@@ -181,3 +182,4 @@ function Separator({ label }: { label: string }) {
     </div>
   );
 }
+
