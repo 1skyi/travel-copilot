@@ -1,11 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, MapPin, Zap, Play, ChevronRight } from "lucide-react";
+import { Sparkles, Send, MapPin, Zap, Play, ChevronRight, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Memory } from "@/lib/memory";
 
 const hotTopics = [
@@ -13,6 +11,12 @@ const hotTopics = [
   { label: "云南", icon: "🌿" },
   { label: "日本", icon: "⛩️" },
   { label: "川西", icon: "🏞️" },
+];
+
+const exampleSentences = [
+  "两个人，9月去新疆7天，从深圳出发，预算6000元",
+  "和女朋友国庆去云南7天，喜欢拍照和美食",
+  "一家三口去日本，想轻松一点，不赶路",
 ];
 
 interface DemoTemplate {
@@ -65,9 +69,9 @@ export default function HomePage() {
 
   const handleStart = () => {
     if (input.trim()) {
-      router.push("/dna?destination=" + encodeURIComponent(input.trim()));
+      router.push("/planning?query=" + encodeURIComponent(input.trim()));
     } else {
-      router.push("/dna");
+      router.push("/planning");
     }
   };
 
@@ -76,11 +80,22 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-8">
       {/* Logo */}
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-6">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
           <MapPin className="h-5 w-5 text-primary-foreground" />
         </div>
         <span className="text-xl font-semibold tracking-tight">Travel Copilot</span>
+      </div>
+
+      {/* Hero */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 rounded-full border bg-muted/30 px-4 py-1.5 text-xs text-muted-foreground mb-4">
+          <Sparkles className="h-3.5 w-3.5" /> AI 旅行决策 Agent
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">你的 AI 旅行决策助手</h1>
+        <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+          不是攻略生成器。告诉我你的需求和预算，AI 帮你做旅行决策、控制预算、优化方案。
+        </p>
       </div>
 
       {/* Chat Input */}
@@ -91,8 +106,8 @@ export default function HomePage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleStart()}
-            placeholder="我想去新疆旅游"
-            className="w-full h-14 px-5 pr-14 text-lg rounded-2xl border bg-background shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all placeholder:text-muted-foreground/50"
+            placeholder="两个人，9月去新疆7天，从深圳出发，预算6000元"
+            className="w-full h-14 px-5 pr-14 text-base rounded-2xl border bg-background shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all placeholder:text-muted-foreground/50"
           />
           <button
             onClick={handleStart}
@@ -102,14 +117,32 @@ export default function HomePage() {
           </button>
         </div>
 
+        {/* Example sentences */}
+        <div className="mt-4 space-y-2">
+          {exampleSentences.map((sentence) => (
+            <button
+              key={sentence}
+              onClick={() => {
+                setInput(sentence);
+                router.push("/planning?query=" + encodeURIComponent(sentence));
+              }}
+              className="w-full flex items-center gap-2 rounded-xl border border-dashed bg-muted/20 px-3.5 py-2.5 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground hover:border-primary/30 transition-all"
+            >
+              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+              <span className="truncate">{sentence}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Hot Topics */}
         <div className="flex items-center justify-center gap-3 mt-6">
           {hotTopics.map((topic) => (
             <button
               key={topic.label}
               onClick={() => {
-                setInput("我想去" + topic.label + "旅游");
-                router.push("/dna?destination=" + encodeURIComponent(topic.label));
+                const text = "我想去" + topic.label + "旅游";
+                setInput(text);
+                router.push("/planning?query=" + encodeURIComponent(text));
               }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full border bg-muted/30 text-sm text-muted-foreground hover:bg-muted hover:text-foreground hover:border-primary/30 transition-all"
             >
@@ -182,4 +215,3 @@ function Separator({ label }: { label: string }) {
     </div>
   );
 }
-

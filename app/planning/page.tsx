@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sparkles, Send, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ function PlanningPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlDest = searchParams.get("destination") || "";
+  const urlQuery = searchParams.get("query") || "";
+  const nlSubmittedRef = useRef(false);
 
   const agent = useMemo(() => new RequirementAgent(), []);
   const [dna, setDNA] = useState<TravelDNA | null>(null);
@@ -68,9 +70,9 @@ function PlanningPageContent() {
     router.push("/trip/brief");
   };
 
-  const handleNlSubmit = () => {
-    if (!nlInput.trim()) return;
-    const parsed = agent.parseNaturalLanguage(nlInput);
+  const submitNl = (text: string) => {
+    if (!text.trim()) return;
+    const parsed = agent.parseNaturalLanguage(text);
     const merged: TripBriefDraft = { ...brief, ...parsed };
     setBrief(merged);
 
@@ -94,6 +96,17 @@ function PlanningPageContent() {
     setFree("");
     setPhase("collecting");
   };
+
+  const handleNlSubmit = () => submitNl(nlInput);
+
+  // 首页自然语言直达：?query= 预填并自动进入收集流程（ref 防重入）
+  useEffect(() => {
+    if (!dna || !urlQuery || nlSubmittedRef.current) return;
+    nlSubmittedRef.current = true;
+    setNlInput(urlQuery);
+    submitNl(urlQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlQuery, dna]);
 
   const handleAnswer = () => {
     if (!question) return;

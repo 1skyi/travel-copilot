@@ -14,11 +14,14 @@ import type { TransportationOption } from "./transportation";
 import type { BudgetSummary } from "./budget";
 
 export type PlanningPhase =
+  | "UNDERSTANDING"
   | "COLLECTING_DATA"
+  | "TRANSPORT"
   | "PLANNING"
   | "CALCULATING_BUDGET"
   | "CHECKING"
   | "COMPLETED"
+  | "REPLANNING"
   | "ERROR";
 
 export interface PlanningProgress {

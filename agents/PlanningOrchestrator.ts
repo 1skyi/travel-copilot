@@ -69,12 +69,28 @@ export class PlanningOrchestrator {
       sessionStorage.removeItem(PREFIX + "itineraries");
       sessionStorage.removeItem(PREFIX + "planning-map");
       sessionStorage.removeItem(PREFIX + "planning-budget");
+      sessionStorage.removeItem(PREFIX + "replan-results");
+      sessionStorage.removeItem(PREFIX + "active-replan");
     }
 
     try {
-      this.emit({ phase: "COLLECTING_DATA", message: "正在获取真实地理、POI 与交通数据..." });
-      const dataContext = await this.collectData(brief);
-      await this.delay(400);
+      this.emit({ phase: "UNDERSTANDING", message: "正在理解你的旅行需求与 Travel DNA..." });
+      await this.delay(300);
+
+      this.emit({ phase: "COLLECTING_DATA", message: "正在获取真实地理与 POI 数据..." });
+      const { destinationGeo, pois } = await this.collectGeoPoi(brief);
+      await this.delay(350);
+
+      this.emit({ phase: "TRANSPORT", message: "正在分析交通方案（真实数据优先）..." });
+      const transportOptions = await this.collectTransport(brief);
+      const dataContext: PlanningDataContext = {
+        destination: brief.destination,
+        destinationGeo,
+        pois,
+        transportOptions,
+        collectedAt: new Date().toISOString(),
+      };
+      await this.delay(300);
 
       this.emit({
         phase: "PLANNING",
@@ -136,7 +152,9 @@ export class PlanningOrchestrator {
     }
   }
 
-  private async collectData(brief: TripBrief): Promise<PlanningDataContext> {
+  private async collectGeoPoi(
+    brief: TripBrief
+  ): Promise<{ destinationGeo: GeoLocation | null; pois: POI[] }> {
     let destinationGeo: GeoLocation | null = null;
     try {
       destinationGeo = await fetchGeocode(brief.destination);
@@ -156,21 +174,16 @@ export class PlanningOrchestrator {
       pois = [];
     }
 
-    let transportOptions: TransportationOption[] = [];
+    return { destinationGeo, pois };
+  }
+
+  private async collectTransport(brief: TripBrief): Promise<TransportationOption[]> {
     try {
       const result = await searchTransportationForBrief(brief);
-      transportOptions = result.options;
+      return result.options;
     } catch {
-      transportOptions = [];
+      return [];
     }
-
-    return {
-      destination: brief.destination,
-      destinationGeo,
-      pois,
-      transportOptions,
-      collectedAt: new Date().toISOString(),
-    };
   }
 
   private async calculateBudget(

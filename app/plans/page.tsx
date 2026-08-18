@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Sparkles, MapPin, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,14 @@ import { PlanCard } from "@/components/PlanCard";
 import { DecisionCardNew } from "@/components/DecisionCardNew";
 import { WhyCard } from "@/components/WhyCard";
 import { OptimizationCard } from "@/components/OptimizationCard";
+import { ReplanPanel } from "@/components/ReplannerPanel";
+import { ReplannerAgent } from "@/agents/ReplannerAgent";
 import { TripPlan, BudgetBreakdown, ReviewResult, DecisionOption } from "@/types/plan";
 import { TravelDNA } from "@/types/travel";
+import type { TripBrief } from "@/types/trip";
+import type { UserSelections } from "@/types/budget";
+import type { TransportationSelection } from "@/types/transportation";
+import type { ReplanResult } from "@/types/replanner";
 
 function buildWhyReasons(plan: TripPlan, dna: TravelDNA | null): string[] {
   const reasons: string[] = [];
@@ -34,14 +40,23 @@ function buildDNAMatch(dna: TravelDNA | null): { trait: string; match: string }[
   ];
 }
 
-export default function PlansPage() {
+function PlansPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get("plan");
   const [plans, setPlans] = useState<TripPlan[]>([]);
   const [budgets, setBudgets] = useState<BudgetBreakdown[]>([]);
   const [reviews, setReviews] = useState<ReviewResult[]>([]);
   const [decisions, setDecisions] = useState<DecisionOption[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [dna, setDNA] = useState<TravelDNA | null>(null);
+  const [brief, setBrief] = useState<TripBrief | null>(null);
+  const [selections, setSelections] = useState<UserSelections | null>(null);
+  const [transportSelection, setTransportSelection] = useState<TransportationSelection | null>(null);
+  const [replanResults, setReplanResults] = useState<Record<string, ReplanResult>>({});
+  const [replanning, setReplanning] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [replanError, setReplanError] = useState("");
 
   useEffect(() => {
     const rawPlans = sessionStorage.getItem("s3-plans");
@@ -62,8 +77,26 @@ export default function PlansPage() {
       if (rawReviews) setReviews(JSON.parse(rawReviews));
       if (rawDecisions) setDecisions(JSON.parse(rawDecisions));
       if (rawDNA) setDNA(JSON.parse(rawDNA));
+
+      const rawBrief = sessionStorage.getItem("s3-brief");
+      if (rawBrief) setBrief(JSON.parse(rawBrief));
+      const rawSelections = sessionStorage.getItem("s3-user-selections");
+      if (rawSelections) setSelections(JSON.parse(rawSelections));
+      const rawTransport = sessionStorage.getItem("s3-transportation-selection");
+      if (rawTransport) setTransportSelection(JSON.parse(rawTransport));
+      const rawReplan = sessionStorage.getItem("s3-replan-results");
+      if (rawReplan) setReplanResults(JSON.parse(rawReplan));
     } catch { router.push("/planning"); }
-  }, []);
+  }, [router]);
+
+  // 深链预选（如“重新优化预算”从 /trip 跳转 ?plan=idx）
+  useEffect(() => {
+    if (planParam === null) return;
+    const idx = Number(planParam);
+    if (!Number.isNaN(idx) && idx >= 0 && idx < plans.length) {
+      setSelectedIdx(idx);
+    }
+  }, [planParam, plans.length]);
 
   if (plans.length === 0) {
     return <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
@@ -77,6 +110,46 @@ export default function PlansPage() {
 
   const whyReasons = selected ? buildWhyReasons(selected, dna) : [];
   const dnaMatch = buildDNAMatch(dna);
+
+  // Replanner：只有 OVER_BUDGET 触发；结果按方案 ID 存历史（V1 保留不覆盖）
+  const activeReplan = selected && replanResults[selected.id] ? replanResults[selected.id] : null;
+
+  const runReplan = async () => {
+    if (!selected || !brief || replanning) return;
+    setReplanning(true);
+    setReplanError("");
+    try {
+      const result = await new ReplannerAgent().replan({
+        plan: selected,
+        brief,
+        dna,
+        selections,
+        transportation: transportSelection,
+      });
+      const merged = { ...replanResults, [selected.id]: result };
+      setReplanResults(merged);
+      sessionStorage.setItem("s3-replan-results", JSON.stringify(merged));
+    } catch (e: any) {
+      setReplanError(e.message || "预算重规划失败，请稍后重试");
+    } finally {
+      setReplanning(false);
+    }
+  };
+
+  const acceptReplan = () => {
+    if (!selected || !activeReplan || accepting) return;
+    setAccepting(true);
+    sessionStorage.setItem("s3-user-selections", JSON.stringify(activeReplan.selections));
+    sessionStorage.setItem("s3-budget-summary", JSON.stringify(activeReplan.newBudget));
+    sessionStorage.setItem("s3-active-replan", JSON.stringify({ planId: selected.id, result: activeReplan }));
+    sessionStorage.setItem("s3-replan-results", JSON.stringify(replanResults));
+    router.push("/trip?plan=" + selectedIdx);
+  };
+
+  const discardReplan = () => {
+    sessionStorage.removeItem("s3-active-replan");
+    router.push("/trip?plan=" + selectedIdx);
+  };
 
   // Build optimization issues from budget
   const optimizationIssues = selectedBudget ? [
@@ -93,7 +166,9 @@ export default function PlansPage() {
             <Sparkles className="h-3.5 w-3.5" />5 个 Agent 协作完成
           </div>
           <h1 className="text-2xl font-bold tracking-tight">为你生成 3 个旅行方案</h1>
-          <p className="text-sm text-muted-foreground mt-2">基于你的旅行 DNA，AI 多 Agent 分析生成</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            结合 Trip Brief 与 Travel DNA · 预算为硬约束 · 超预算可一键重规划
+          </p>
         </div>
 
         {anyOverBudget && (
@@ -142,11 +217,46 @@ export default function PlansPage() {
                     ⚠️ 当前方案超预算：预计最低 ¥{selectedBudget.estimatedMin.toLocaleString()}，超出你的预算 ¥{selectedBudget.remainingMin < 0 ? (-selectedBudget.remainingMin).toLocaleString() : "0"}。
                   </div>
                 )}
+                {/* Replanner 触发：只有 OVER_BUDGET 才显示 */}
+                {selectedBudget.overBudget && brief && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      className="w-full gap-1.5 text-xs"
+                      onClick={runReplan}
+                      disabled={replanning}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {replanning ? "AI 正在分析超支项并调整预算..." : "生成符合预算的新方案（V1 → V2）"}
+                    </Button>
+                    {replanError && <p className="mt-2 text-xs text-red-600">{replanError}</p>}
+                  </div>
+                )}
                 <div className="flex justify-between items-center mt-3 pt-3 border-t text-sm">
                   <span className="text-muted-foreground">估算区间</span>
                   <span className="font-semibold">¥{selectedBudget.estimatedMin.toLocaleString()} ~ ¥{selectedBudget.estimatedMax.toLocaleString()}</span>
                 </div>
               </div>
+            )}
+
+            {/* Replanner：无需调整的提示（引擎判定预算内） */}
+            {activeReplan && activeReplan.newVersion === 1 && (
+              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
+                <p className="font-medium">当前方案在预算内，无需调整。</p>
+                <p className="mt-1 text-xs text-muted-foreground">{activeReplan.message}</p>
+              </div>
+            )}
+
+            {/* Replanner 结果面板 */}
+            {activeReplan && activeReplan.newVersion === 2 && (
+              <ReplanPanel
+                result={activeReplan}
+                onAccept={acceptReplan}
+                onDiscard={discardReplan}
+                accepting={accepting}
+                running={replanning}
+                planIdx={selectedIdx ?? 0}
+              />
             )}
 
             {/* OptimizationCard */}
@@ -193,5 +303,13 @@ export default function PlansPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PlansPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-4rem)]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+      <PlansPageContent />
+    </Suspense>
   );
 }

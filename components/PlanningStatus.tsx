@@ -1,16 +1,19 @@
 "use client";
 
-import { CheckCircle2, Loader2, AlertCircle, Database, Map, Wallet, ShieldCheck, PartyPopper } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, Database, Map, Wallet, ShieldCheck, PartyPopper, MessageSquare, Plane, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ElementType } from "react";
 import type { PlanningPhase, PlanningProgress } from "@/types/planning";
 
 const PHASES: { phase: PlanningPhase; label: string; icon: ElementType }[] = [
-  { phase: "COLLECTING_DATA", label: "收集真实数据", icon: Database },
-  { phase: "PLANNING", label: "生成旅行方案", icon: Map },
+  { phase: "UNDERSTANDING", label: "理解需求", icon: MessageSquare },
+  { phase: "COLLECTING_DATA", label: "获取数据", icon: Database },
+  { phase: "TRANSPORT", label: "分析交通", icon: Plane },
+  { phase: "PLANNING", label: "规划路线", icon: Map },
   { phase: "CALCULATING_BUDGET", label: "计算预算", icon: Wallet },
-  { phase: "CHECKING", label: "检查路线与预算", icon: ShieldCheck },
+  { phase: "CHECKING", label: "检查预算", icon: ShieldCheck },
   { phase: "COMPLETED", label: "完成", icon: PartyPopper },
+  { phase: "REPLANNING", label: "重新优化预算", icon: RefreshCw },
 ];
 
 interface PlanningStatusProps {
@@ -27,6 +30,8 @@ export function PlanningStatus({ progress, error = "" }: PlanningStatusProps) {
   return (
     <div className="space-y-2">
       {PHASES.map((item, index) => {
+        // 重新优化预算仅在触发时展示
+        if (item.phase === "REPLANNING" && activePhase !== "REPLANNING") return null;
         const Icon = item.icon;
         const isDone = activeIndex > index || activePhase === "COMPLETED";
         const isActive = activeIndex === index;
