@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { AmapProvider } from "./providers/AmapProvider";
+import { TravelDataService } from "./TravelDataService";
 import { MemoryCache } from "./cache";
 import { TravelDataError } from "./errors";
 
@@ -15,6 +16,10 @@ export function getAmapProvider(): AmapProvider {
   return new AmapProvider(process.env.AMAP_API_KEY || "", {
     cache: sharedCache,
   });
+}
+
+export function getTravelDataService(): TravelDataService {
+  return new TravelDataService(getAmapProvider());
 }
 
 export function travelDataErrorResponse(e: unknown) {

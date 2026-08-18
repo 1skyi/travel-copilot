@@ -45,13 +45,19 @@ export function buildCacheKey(operation: string, ...parts: (string | number)[]):
   return [operation, ...parts.map((p) => String(p))].join(":");
 }
 
-// 地点名清洗：处理 "伊宁 → 那拉提" 与 "乌市" 缩写
+// 地点名清洗：处理 "伊宁 → 那拉提"、"乌市" 缩写与易歧义地名。
+// 歧义地名映射到高德可正确定位的名称（仅影响 Geocoding，Timeline 展示原名）。
+const GEOCODE_DISAMBIGUATION: Record<string, string> = {
+  // "青海湖" 会被高德模糊匹配到乌鲁木齐的同名小区，需指定到共和县
+  "青海湖": "共和县青海湖",
+};
+
 export function sanitizeLocationName(name: string): string {
   if (!name) return "";
   const parts = name.split("→").map((p) => p.trim()).filter(Boolean);
   const last = parts[parts.length - 1] || "";
   if (last === "乌市") return "乌鲁木齐";
-  return last;
+  return GEOCODE_DISAMBIGUATION[last] ?? last;
 }
 
 // 距离格式化

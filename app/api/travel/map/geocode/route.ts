@@ -1,6 +1,6 @@
 ﻿// GET /api/travel/map/geocode?address=乌鲁木齐
 import { NextRequest, NextResponse } from "next/server";
-import { getAmapProvider, travelDataErrorResponse } from "@/lib/travel-data/server";
+import { getTravelDataService, travelDataErrorResponse } from "@/lib/travel-data/server";
 
 export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address") || "";
@@ -12,8 +12,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const provider = getAmapProvider();
-    const result = await provider.geocode(address.trim());
+    const service = getTravelDataService();
+    const result = await service.geocode(address.trim());
+    if (!result) {
+      return NextResponse.json(
+        { error: { status: 404, message: "暂无真实数据", provider: "AMAP" } },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(result);
   } catch (e) {
     return travelDataErrorResponse(e);

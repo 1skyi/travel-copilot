@@ -9,13 +9,13 @@ import type {
   POI,
   RouteResult,
   RouteMode,
-  RoutePoint,
 } from "@/types/location";
 import { DATA_SOURCE, DATA_SOURCE_TYPE } from "@/types/location";
 import type { MapProvider } from "../interfaces/MapProvider";
 import { TravelDataError } from "../errors";
 import { MemoryCache } from "../cache";
-import { parseLngLat, decodeAmapPolyline, buildCacheKey } from "../utils";
+import { parseLngLat, buildCacheKey } from "../utils";
+import { parseAmapPathRoute, parseAmapTransitRoute } from "./amapRouteParsers";
 
 const AMAP_BASE = "https://restapi.amap.com";
 
@@ -26,6 +26,7 @@ const ROUTE_TTL = 10 * 60 * 1000; // 10min
 interface AmapProviderOptions {
   cache?: MemoryCache;
   timeoutMs?: number;
+  fetchFn?: typeof fetch;
 }
 
 interface AmapGeocode {
@@ -46,6 +47,7 @@ export class AmapProvider implements MapProvider {
   private apiKey: string;
   private cache: MemoryCache;
   private timeoutMs: number;
+  private fetchFn: typeof fetch;
 
   constructor(apiKey: string, options: AmapProviderOptions = {}) {
     if (!apiKey || apiKey.trim() === "") {
@@ -54,6 +56,7 @@ export class AmapProvider implements MapProvider {
     this.apiKey = apiKey.trim();
     this.cache = options.cache ?? new MemoryCache();
     this.timeoutMs = options.timeoutMs ?? 8000;
+    this.fetchFn = options.fetchFn ?? fetch;
   }
 
   async geocode(address: string): Promise<GeoLocation> {
@@ -68,7 +71,25 @@ export class AmapProvider implements MapProvider {
       "&key=" +
       this.apiKey;
 
-    const data = await this.fetchJson(url, "geocode");
+    let data: { geocodes?: AmapGeocode[] };
+    try {
+      data = await this.fetchJson(url, "geocode");
+    } catch (error) {
+      // 高德 geocode 对部分景点名（如"天山天池"）会返回引擎错误：
+      // 降级到 POI 搜索取首个真实 POI 坐标，仍失败才上抛原错误，绝不伪造。
+      if (
+        error instanceof TravelDataError &&
+        error.status === 502 &&
+        /ENGINE_RESPONSE_DATA_ERROR/.test(error.message)
+      ) {
+        const fallback = await this.geocodeViaPOI(address);
+        if (fallback) {
+          this.cache.set(key, fallback, GEOCODE_TTL);
+          return fallback;
+        }
+      }
+      throw error;
+    }
 
     const geocodes: AmapGeocode[] = data.geocodes || [];
     if (geocodes.length === 0) {
@@ -93,6 +114,23 @@ export class AmapProvider implements MapProvider {
     };
     this.cache.set(key, result, GEOCODE_TTL);
     return result;
+  }
+
+  // geocode 引擎错误时的兜底：用 POI 搜索取首个真实地点坐标。
+  // 保留用户输入的名称，地址与坐标来自高德 POI；POI 也失败则返回 null。
+  private async geocodeViaPOI(address: string): Promise<GeoLocation | null> {
+    try {
+      const pois = await this.searchPOI(address);
+      const first = pois[0];
+      if (!first || !first.location) return null;
+      return {
+        ...first.location,
+        id: "geo_" + encodeURIComponent(address),
+        name: address,
+      };
+    } catch {
+      return null;
+    }
   }
 
   async reverseGeocode(latitude: number, longitude: number): Promise<Address> {
@@ -186,12 +224,6 @@ export class AmapProvider implements MapProvider {
     destination: GeoLocation,
     mode: RouteMode
   ): Promise<RouteResult> {
-    // 注：MapProvider 接口为未来 WALKING/TRANSIT 预留，
-    // 本 Sprint 产品路径（Trip 页相邻 Day 路段）只使用 DRIVING。
-    if (mode !== "DRIVING") {
-      throw new TravelDataError(501, "Sprint 6.1 仅支持 DRIVING 路线", "AMAP");
-    }
-
     const cacheKey = buildCacheKey(
       "route",
       origin.longitude + "," + origin.latitude,
@@ -201,51 +233,26 @@ export class AmapProvider implements MapProvider {
     const cached = this.cache.get<RouteResult>(cacheKey);
     if (cached) return cached;
 
-    const url =
-      AMAP_BASE +
-      "/v3/direction/driving?origin=" +
-      origin.longitude +
-      "," +
-      origin.latitude +
-      "&destination=" +
-      destination.longitude +
-      "," +
-      destination.latitude +
-      "&extensions=base&key=" +
-      this.apiKey;
+    const url = this.buildRouteUrl(origin, destination, mode);
 
-    const data = await this.fetchJson(url, "route");
-    const route = data.route || {};
-    const paths = route.paths || [];
-    if (paths.length === 0) {
+    const data = await this.fetchJson(url, "route:" + mode);
+    const parsed =
+      mode === "TRANSIT"
+        ? parseAmapTransitRoute(data)
+        : parseAmapPathRoute(data);
+
+    if (!parsed) {
       throw new TravelDataError(404, "未找到该路线的规划结果", "AMAP");
-    }
-
-    const path = paths[0];
-    const distance = Number(path.distance);
-    const duration = Number(path.duration);
-    if (!Number.isFinite(distance) || distance < 0 || !Number.isFinite(duration) || duration < 0) {
-      throw new TravelDataError(502, "路线距离或时长数据无效", "AMAP");
-    }
-
-    // 汇总所有 step 的 polyline；缺失时不得伪造直线路线
-    const steps = path.steps || [];
-    let polyline: RoutePoint[] = [];
-    for (const step of steps) {
-      polyline = polyline.concat(decodeAmapPolyline(step.polyline || ""));
-    }
-    if (polyline.length === 0) {
-      throw new TravelDataError(502, "路线坐标缺失，无法绘制路线", "AMAP");
     }
 
     const fetchedAt = new Date().toISOString();
     const result: RouteResult = {
       origin,
       destination,
-      distance: { value: distance, unit: "m", source: DATA_SOURCE, sourceType: DATA_SOURCE_TYPE, fetchedAt },
-      duration: { value: duration, unit: "s", source: DATA_SOURCE, sourceType: DATA_SOURCE_TYPE, fetchedAt },
+      distance: { value: parsed.distance, unit: "m", source: DATA_SOURCE, sourceType: DATA_SOURCE_TYPE, fetchedAt },
+      duration: { value: parsed.duration, unit: "s", source: DATA_SOURCE, sourceType: DATA_SOURCE_TYPE, fetchedAt },
       mode,
-      polyline,
+      polyline: parsed.polyline,
       source: DATA_SOURCE,
       sourceType: DATA_SOURCE_TYPE,
       fetchedAt,
@@ -254,11 +261,48 @@ export class AmapProvider implements MapProvider {
     return result;
   }
 
+  private buildRouteUrl(
+    origin: GeoLocation,
+    destination: GeoLocation,
+    mode: RouteMode
+  ): string {
+    const originLngLat = origin.longitude + "," + origin.latitude;
+    const destinationLngLat = destination.longitude + "," + destination.latitude;
+
+    if (mode === "TRANSIT") {
+      // 高德公交路线规划接口；无真实数据时由 fetchJson/route 返回 NO_DATA。
+      return (
+        AMAP_BASE +
+        "/v3/direction/transit/integrated?origin=" +
+        originLngLat +
+        "&destination=" +
+        destinationLngLat +
+        "&city=" +
+        encodeURIComponent(origin.name) +
+        "&extensions=base&key=" +
+        this.apiKey
+      );
+    }
+
+    const endpoint = mode === "WALKING" ? "walking" : "driving";
+    return (
+      AMAP_BASE +
+      "/v3/direction/" +
+      endpoint +
+      "?origin=" +
+      originLngLat +
+      "&destination=" +
+      destinationLngLat +
+      "&extensions=base&key=" +
+      this.apiKey
+    );
+  }
+
   private async fetchJson(url: string, operation: string): Promise<any> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const res = await fetch(url, {
+      const res = await this.fetchFn(url, {
         signal: controller.signal,
         cache: "no-store",
       });
@@ -267,7 +311,13 @@ export class AmapProvider implements MapProvider {
       }
       const json = await res.json();
       if (json.status !== "1") {
-        throw new TravelDataError(502, "高德 API 错误：" + (json.info || "未知错误"), "AMAP");
+        const info = String(json.info || "未知错误");
+        // 超出行程规划范围 = 该方式下无可用路线，语义等同于 NO_DATA(404)，
+        // 由 TravelDataService 转为 null，UI 显示"暂无数据"而非报错。
+        if (info.includes("OVER_DIRECTION_RANGE")) {
+          throw new TravelDataError(404, "该方式下无可用路线（超出规划范围）", "AMAP");
+        }
+        throw new TravelDataError(502, "高德 API 错误：" + info, "AMAP");
       }
       return json;
     } catch (e) {

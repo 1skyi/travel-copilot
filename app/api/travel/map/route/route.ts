@@ -1,6 +1,6 @@
 ﻿// GET /api/travel/map/route?origin=乌鲁木齐&destination=赛里木湖&mode=DRIVING
 import { NextRequest, NextResponse } from "next/server";
-import { getAmapProvider, travelDataErrorResponse } from "@/lib/travel-data/server";
+import { getTravelDataService, travelDataErrorResponse } from "@/lib/travel-data/server";
 import type { RouteMode } from "@/types/location";
 
 const VALID_MODES: RouteMode[] = ["DRIVING", "WALKING", "TRANSIT"];
@@ -24,11 +24,29 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const provider = getAmapProvider();
+    const service = getTravelDataService();
     // 地点名 → 真实坐标 → 真实路线（全部走高德 Web Service）
-    const originLoc = await provider.geocode(origin.trim());
-    const destLoc = await provider.geocode(destination.trim());
-    const result = await provider.route(originLoc, destLoc, modeParam as RouteMode);
+    const originLoc = await service.geocode(origin.trim());
+    if (!originLoc) {
+      return NextResponse.json(
+        { error: { status: 404, message: "暂无真实数据", provider: "AMAP" } },
+        { status: 404 }
+      );
+    }
+    const destLoc = await service.geocode(destination.trim());
+    if (!destLoc) {
+      return NextResponse.json(
+        { error: { status: 404, message: "暂无真实数据", provider: "AMAP" } },
+        { status: 404 }
+      );
+    }
+    const result = await service.route(originLoc, destLoc, modeParam as RouteMode);
+    if (!result) {
+      return NextResponse.json(
+        { error: { status: 404, message: "暂无真实数据", provider: "AMAP" } },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(result);
   } catch (e) {
     return travelDataErrorResponse(e);

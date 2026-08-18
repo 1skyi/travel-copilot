@@ -124,7 +124,7 @@ export default function PlansPage() {
             {/* Budget breakdown */}
             {selectedBudget && (
               <div className="p-4 rounded-xl border bg-muted/30">
-                <h3 className="text-sm font-semibold mb-3">BudgetAgent 预算明细</h3>
+                <h3 className="text-sm font-semibold mb-3">AI 参考估算（尚未确认）</h3>
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   {[
                     { label: "长途交通", val: selectedBudget.transport.amount },
@@ -139,7 +139,7 @@ export default function PlansPage() {
                 </div>
                 {selectedBudget.overBudget && (
                   <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-600">
-                    ⚠️ 预算不足：预计最低 ¥{selectedBudget.estimatedMin.toLocaleString()}，超出你的预算 ¥{selectedBudget.remainingMin < 0 ? (-selectedBudget.remainingMin).toLocaleString() : "0"}。
+                    ⚠️ 当前方案超预算：预计最低 ¥{selectedBudget.estimatedMin.toLocaleString()}，超出你的预算 ¥{selectedBudget.remainingMin < 0 ? (-selectedBudget.remainingMin).toLocaleString() : "0"}。
                   </div>
                 )}
                 <div className="flex justify-between items-center mt-3 pt-3 border-t text-sm">
@@ -180,8 +180,8 @@ export default function PlansPage() {
 
             {/* CTA buttons */}
             <div className="flex gap-3 justify-center pt-4">
-              <Button size="lg" onClick={() => router.push("/trip?plan=" + selectedIdx)} className="gap-2">
-                <MapPin className="h-4 w-4" />查看详细行程 <ArrowRight className="h-4 w-4" />
+              <Button size="lg" onClick={() => router.push("/transportation?plan=" + selectedIdx)} className="gap-2">
+                <MapPin className="h-4 w-4" />选择交通方案 <ArrowRight className="h-4 w-4" />
               </Button>
               <Link href={"/report?plan=" + selectedIdx}>
                 <Button variant="outline" size="lg" className="gap-2">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { RequirementAgent } from "@/agents/RequirementAgent";
 import { TravelDNA } from "@/types/travel";
 import { TripBriefDraft, TripBriefField, RequirementQuestion, createEmptyDraft } from "@/types/trip";
+import { DatePickerCalendar } from "@/components/DatePickerCalendar";
 
 const BRIEF_KEY = "s3-brief";
 
@@ -321,16 +322,22 @@ function PlanningPageContent() {
                 </div>
               </>
             ) : question.type === "date" ? (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="date"
-                  value={free}
-                  onChange={(e) => setFree(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAnswer()}
-                  className="flex-1 h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <Button size="sm" onClick={handleAnswer}>确认</Button>
-              </div>
+              <DatePickerCalendar
+                value={free || undefined}
+                minDate={question.field === "endDate" ? brief.startDate || undefined : undefined}
+                onSelect={(isoDate) => {
+                  // 日历点选即作答，与单选 chip 行为一致
+                  const merged = agent.applyAnswer(brief, question.field, isoDate);
+                  setBrief(merged);
+                  const newAnswered = [...answered, question.field];
+                  setAnswered(newAnswered);
+                  const next = nextField(merged, newAnswered);
+                  if (!next) { goToBrief(merged); return; }
+                  setQuestion(agent.getQuestion(next));
+                  setMulti([]);
+                  setFree("");
+                }}
+              />
             ) : question.type === "number" ? (
               <div className="flex gap-2 items-center">
                 <input

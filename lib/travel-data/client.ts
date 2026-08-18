@@ -40,10 +40,15 @@ export async function fetchGeocode(address: string): Promise<GeoLocation> {
   );
 }
 
-export async function fetchPOI(keyword: string): Promise<POI[]> {
-  return apiGet<POI[]>(
-    "/api/travel/map/poi?keyword=" + encodeURIComponent(keyword)
-  );
+export async function fetchPOI(
+  keyword: string,
+  location?: { longitude: number; latitude: number }
+): Promise<POI[]> {
+  const params = new URLSearchParams({ keyword });
+  if (location) {
+    params.set("location", location.longitude + "," + location.latitude);
+  }
+  return apiGet<POI[]>("/api/travel/map/poi?" + params.toString());
 }
 
 export async function fetchRoute(

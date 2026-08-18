@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:unit": "node --test tests/travel-data/unit.test.mjs tests/travel-data/trip.test.mjs",
+    "test:unit": "node --test tests/travel-data/unit.test.mjs tests/travel-data/trip.test.mjs tests/travel-data/budget-engine.test.mjs tests/travel-data/requirement-agent.test.mjs tests/travel-data/trip-brief.test.mjs tests/transportation/transportation.test.mjs",
     "test:integration": "node tests/travel-data/api.integration.mjs"
   },
   "dependencies": {

@@ -36,6 +36,13 @@ export class TravelController {
     const rawDNA = typeof window !== "undefined" ? localStorage.getItem(DNA_STORAGE_KEY) : null;
     if (!rawDNA) throw new Error("No Travel DNA found");
 
+    // 新一轮规划必须重新完成决策预算，清除上一轮的旧选择
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(PREFIX + "user-selections");
+      sessionStorage.removeItem(PREFIX + "budget-summary");
+      sessionStorage.removeItem(PREFIX + "transportation-selection");
+    }
+
     const dna: TravelDNA = JSON.parse(rawDNA);
     const destination = brief.destination;
     const days = brief.duration;

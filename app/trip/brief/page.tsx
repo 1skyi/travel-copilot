@@ -5,17 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, MapPin, CalendarDays, Users, Wallet,
-  Car, Heart, ShieldAlert, CheckCircle2, Loader2, PencilLine,
+  Car, Heart, ShieldAlert, CheckCircle2, PencilLine,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { AgentStatusList } from "@/components/AgentStatus";
-import { TravelController } from "@/agents/TravelAgentController";
+import { PlanningStatus } from "@/components/PlanningStatus";
+import { PlanningOrchestrator } from "@/agents/PlanningOrchestrator";
 import { RequirementAgent } from "@/agents/RequirementAgent";
 import { Memory } from "@/lib/memory";
-import { AgentStep } from "@/types/travel";
+import type { PlanningProgress } from "@/types/planning";
 import {
   TripBrief,
   TRANSPORTATION_LABELS,
@@ -34,7 +34,7 @@ export default function BriefPage() {
   const agent = useMemo(() => new RequirementAgent(), []);
   const [brief, setBrief] = useState<TripBrief | null>(null);
   const [executing, setExecuting] = useState(false);
-  const [steps, setSteps] = useState<AgentStep[]>([]);
+  const [progress, setProgress] = useState<PlanningProgress | null>(null);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
@@ -63,10 +63,10 @@ export default function BriefPage() {
     const confirmed: TripBrief = { ...brief, confirmed: true, confirmedAt: new Date().toISOString() };
     sessionStorage.setItem(BRIEF_KEY, JSON.stringify(confirmed));
 
-    const ctrl = new TravelController();
-    ctrl.addProgressListener((s) => setSteps(s));
+    const orchestrator = new PlanningOrchestrator();
+    orchestrator.addProgressListener((p) => setProgress(p));
     try {
-      const result = await ctrl.run(confirmed);
+      const result = await orchestrator.run(confirmed);
       sessionStorage.setItem("s3-plans", JSON.stringify(result.plans));
       sessionStorage.setItem("s3-budgets", JSON.stringify(result.budgets));
       sessionStorage.setItem("s3-reviews", JSON.stringify(result.reviews));
@@ -84,6 +84,7 @@ export default function BriefPage() {
       setTimeout(() => setDone(true), 500);
     } catch (e: any) {
       setError(e.message || "Agent pipeline failed");
+      setProgress({ phase: "ERROR", message: e.message || "Agent pipeline failed" });
     }
   };
 
@@ -98,7 +99,7 @@ export default function BriefPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 rounded-full border bg-muted/30 px-4 py-1.5 text-sm text-muted-foreground mb-4">
-              <Sparkles className="h-3.5 w-3.5" /> Planner Agent 执行中...
+              <Sparkles className="h-3.5 w-3.5" /> Planning Orchestrator 执行中...
             </div>
             <h1 className="text-xl font-bold">正在生成 {brief.duration} 天方案</h1>
           </div>
@@ -107,9 +108,7 @@ export default function BriefPage() {
             <div className="mb-6 p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 text-sm">{error}</div>
           )}
 
-          {steps.length > 0 ? <AgentStatusList steps={steps} /> : (
-            <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 text-primary animate-spin" /></div>
-          )}
+          <PlanningStatus progress={progress} error={error} />
 
           {done && (
             <div className="mt-10 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -121,7 +120,7 @@ export default function BriefPage() {
 
           {error && !done && (
             <div className="mt-4 text-center">
-              <Button variant="outline" onClick={() => { setExecuting(false); setError(""); setSteps([]); }}>返回修改</Button>
+              <Button variant="outline" onClick={() => { setExecuting(false); setError(""); setProgress(null); }}>返回修改</Button>
             </div>
           )}
         </div>

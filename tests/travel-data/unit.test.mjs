@@ -88,3 +88,8 @@ test("MemoryCache 命中、过期与清理", () => {
   cache.clear();
   assert.equal(cache.get("key"), null);
 });
+test("sanitizeLocationName 青海湖歧义地名消歧", () => {
+  assert.equal(utils.sanitizeLocationName("青海湖"), "共和县青海湖");
+  assert.equal(utils.sanitizeLocationName("共和县青海湖"), "共和县青海湖");
+  assert.equal(utils.sanitizeLocationName("伊宁 → 那拉提"), "那拉提");
+});

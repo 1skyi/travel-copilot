@@ -108,12 +108,174 @@ const destinations: Record<string, { routes: RouteTemplate[]; budgetBase: number
       ],
     ],
   },
+  "川西": {
+    budgetBase: 6500,
+    routes: [
+      [
+        { day: 1, location: "成都", activities: ["抵达", "宽窄巷子", "锦里"] },
+        { day: 2, location: "康定", activities: ["泸定桥", "折多山", "康定情歌广场"] },
+        { day: 3, location: "新都桥镇", activities: ["摄影天堂", "塔公草原", "雅拉雪山观景"] },
+        { day: 4, location: "稻城", activities: ["海子山", "尊胜塔林", "香格里拉镇"] },
+        { day: 5, location: "稻城亚丁", activities: ["亚丁景区", "冲古寺", "珍珠海"] },
+        { day: 6, location: "成都", activities: ["返程成都", "人民公园", "川剧表演"] },
+        { day: 7, location: "成都", activities: ["熊猫基地", "购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "成都", activities: ["抵达", "春熙路", "太古里"] },
+        { day: 2, location: "海螺沟冰川", activities: ["冰川森林公园", "红石滩", "温泉"] },
+        { day: 3, location: "泸定", activities: ["泸定桥", "磨西古镇", "燕子沟"] },
+        { day: 4, location: "康定", activities: ["木格措", "跑马山", "康定古城"] },
+        { day: 5, location: "丹巴", activities: ["甲居藏寨", "梭坡碉楼", "中路藏寨"] },
+        { day: 6, location: "成都", activities: ["返回", "玉林路", "川味火锅"] },
+        { day: 7, location: "成都", activities: ["自由活动", "返程"] },
+      ],
+      [
+        { day: 1, location: "成都", activities: ["抵达", "人民公园", "天府广场"] },
+        { day: 2, location: "都江堰", activities: ["都江堰景区", "南桥", "灌县古城"] },
+        { day: 3, location: "青城山", activities: ["青城前山", "天师洞", "老君阁"] },
+        { day: 4, location: "成都", activities: ["熊猫基地", "东郊记忆", "九眼桥"] },
+        { day: 5, location: "成都", activities: ["金沙遗址", "杜甫草堂", "锦江夜游"] },
+        { day: 6, location: "成都", activities: ["博物馆", "购物", "盖碗茶"] },
+        { day: 7, location: "成都", activities: ["自由活动", "返程"] },
+      ],
+    ],
+  },
+  "西藏": {
+    budgetBase: 9000,
+    routes: [
+      [
+        { day: 1, location: "拉萨", activities: ["抵达", "八廓街", "布达拉宫广场夜景"] },
+        { day: 2, location: "拉萨", activities: ["布达拉宫", "大昭寺", "色拉寺辩经"] },
+        { day: 3, location: "纳木错", activities: ["圣湖纳木错", "扎西半岛", "星空"] },
+        { day: 4, location: "羊卓雍措", activities: ["羊湖观景台", "卡若拉冰川", "日喀则"] },
+        { day: 5, location: "日喀则", activities: ["扎什伦布寺", "宗山古堡", "江孜"] },
+        { day: 6, location: "拉萨", activities: ["返回", "罗布林卡", "甜茶馆"] },
+        { day: 7, location: "拉萨", activities: ["购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "拉萨", activities: ["抵达", "适应海拔", "八廓街"] },
+        { day: 2, location: "林芝", activities: ["巴松措", "鲁朗林海", "石锅鸡"] },
+        { day: 3, location: "林芝", activities: ["雅鲁藏布大峡谷", "南迦巴瓦峰观景"] },
+        { day: 4, location: "山南", activities: ["桑耶寺", "雍布拉康", "泽当"] },
+        { day: 5, location: "拉萨", activities: ["布达拉宫", "大昭寺", "文成公主演出"] },
+        { day: 6, location: "拉萨", activities: ["纳木错一日游", "星空拍摄"] },
+        { day: 7, location: "拉萨", activities: ["购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "拉萨", activities: ["抵达", "适应海拔", "布达拉宫广场"] },
+        { day: 2, location: "拉萨", activities: ["布达拉宫", "大昭寺", "八廓街"] },
+        { day: 3, location: "拉萨", activities: ["色拉寺", "哲蚌寺", "甜茶馆"] },
+        { day: 4, location: "纳木错", activities: ["纳木错一日游", "扎西半岛"] },
+        { day: 5, location: "拉萨", activities: ["罗布林卡", "西藏博物馆", "夜游布宫"] },
+        { day: 6, location: "拉萨", activities: ["购物", "藏餐体验"] },
+        { day: 7, location: "拉萨", activities: ["返程"] },
+      ],
+    ],
+  },
+  "海南": {
+    budgetBase: 5500,
+    routes: [
+      [
+        { day: 1, location: "海口", activities: ["抵达", "骑楼老街", "假日海滩"] },
+        { day: 2, location: "文昌", activities: ["东郊椰林", "石头公园", "航天科普中心"] },
+        { day: 3, location: "万宁", activities: ["日月湾", "石梅湾", "兴隆热带植物园"] },
+        { day: 4, location: "三亚", activities: ["海棠湾", "后海村", "夜市"] },
+        { day: 5, location: "三亚", activities: ["亚龙湾", "热带天堂森林公园", "日落"] },
+        { day: 6, location: "海口", activities: ["返回", "海鲜市场", "免税店"] },
+        { day: 7, location: "海口", activities: ["返程"] },
+      ],
+      [
+        { day: 1, location: "海口", activities: ["抵达", "骑楼老街", "假日海滩"] },
+        { day: 2, location: "三亚", activities: ["三亚湾", "椰梦长廊", "第一市场"] },
+        { day: 3, location: "三亚", activities: ["亚龙湾", "热带天堂森林公园"] },
+        { day: 4, location: "蜈支洲岛", activities: ["蜈支洲岛一日游", "潜水", "环岛电瓶车"] },
+        { day: 5, location: "南山", activities: ["南山文化旅游区", "海上观音", "天涯海角"] },
+        { day: 6, location: "海口", activities: ["返回", "火山口地质公园"] },
+        { day: 7, location: "海口", activities: ["免税店", "返程"] },
+      ],
+      [
+        { day: 1, location: "海口", activities: ["抵达", "骑楼老街", "海大南门夜市"] },
+        { day: 2, location: "海口", activities: ["火山口", "假日海滩", "观澜湖"] },
+        { day: 3, location: "三亚", activities: ["高铁至三亚", "三亚湾", "椰梦长廊"] },
+        { day: 4, location: "三亚", activities: ["亚龙湾", "大东海", "第一市场"] },
+        { day: 5, location: "三亚", activities: ["后海村", "海棠湾", "免税店"] },
+        { day: 6, location: "海口", activities: ["返回", "骑楼小吃街"] },
+        { day: 7, location: "海口", activities: ["返程"] },
+      ],
+    ],
+  },
+  "青海": {
+    budgetBase: 6000,
+    routes: [
+      [
+        { day: 1, location: "西宁", activities: ["抵达", "东关清真大寺", "莫家街"] },
+        { day: 2, location: "青海湖", activities: ["二郎剑景区", "环湖骑行", "湖畔日落"] },
+        { day: 3, location: "茶卡盐湖", activities: ["天空之镜", "盐雕广场", "星空拍摄"] },
+        { day: 4, location: "大柴旦", activities: ["翡翠湖", "雅丹地貌", "大柴旦湖"] },
+        { day: 5, location: "德令哈", activities: ["克鲁克湖", "托素湖", "外星人遗址"] },
+        { day: 6, location: "西宁", activities: ["返回", "塔尔寺", "手抓羊肉"] },
+        { day: 7, location: "西宁", activities: ["购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "西宁", activities: ["抵达", "东关清真大寺", "水井巷"] },
+        { day: 2, location: "塔尔寺", activities: ["塔尔寺", "藏医药博物馆", "西宁夜景"] },
+        { day: 3, location: "青海湖", activities: ["二郎剑", "环湖西路", "黑马河"] },
+        { day: 4, location: "茶卡盐湖", activities: ["天空之镜", "盐湖日落"] },
+        { day: 5, location: "祁连", activities: ["卓尔山", "阿咪东索", "祁连草原"] },
+        { day: 6, location: "门源", activities: ["百里油菜花海", "达坂山观景", "返回西宁"] },
+        { day: 7, location: "西宁", activities: ["购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "西宁", activities: ["抵达", "莫家街", "中心广场"] },
+        { day: 2, location: "西宁", activities: ["塔尔寺", "青海省博物馆", "南山公园"] },
+        { day: 3, location: "青海湖", activities: ["青海湖一日游", "二郎剑"] },
+        { day: 4, location: "西宁", activities: ["东关清真大寺", "北山土楼观", "水井巷"] },
+        { day: 5, location: "西宁", activities: ["丹噶尔古城", "湟源", "农家院"] },
+        { day: 6, location: "西宁", activities: ["购物", "手抓羊肉"] },
+        { day: 7, location: "西宁", activities: ["返程"] },
+      ],
+    ],
+  },
+  "泰国": {
+    budgetBase: 7500,
+    routes: [
+      [
+        { day: 1, location: "曼谷", activities: ["抵达", "考山路", "湄南河夜游"] },
+        { day: 2, location: "曼谷", activities: ["大皇宫", "玉佛寺", "卧佛寺"] },
+        { day: 3, location: "大城", activities: ["大城遗址", "玛哈泰寺", "水上市场"] },
+        { day: 4, location: "清迈", activities: ["清迈古城", "契迪龙寺", "周日夜市"] },
+        { day: 5, location: "清莱", activities: ["白庙", "黑庙", "金三角"] },
+        { day: 6, location: "清迈", activities: ["素贴山", "双龙寺", "宁曼路"] },
+        { day: 7, location: "曼谷", activities: ["返回", "暹罗广场", "返程"] },
+      ],
+      [
+        { day: 1, location: "曼谷", activities: ["抵达", "大皇宫", "考山路"] },
+        { day: 2, location: "芭提雅", activities: ["海滩", "格兰岛", "蒂芬妮人妖秀"] },
+        { day: 3, location: "普吉岛", activities: ["芭东海滩", "西蒙人妖秀", "海鲜夜市"] },
+        { day: 4, location: "普吉岛", activities: ["大小PP岛一日游", "浮潜", "玛雅湾"] },
+        { day: 5, location: "普吉岛", activities: ["神仙半岛", "查龙寺", "卡塔海滩日落"] },
+        { day: 6, location: "曼谷", activities: ["返回", "暹罗商圈", "拉差达夜市"] },
+        { day: 7, location: "曼谷", activities: ["购物", "返程"] },
+      ],
+      [
+        { day: 1, location: "曼谷", activities: ["抵达", "考山路", "湄南河渡轮"] },
+        { day: 2, location: "曼谷", activities: ["大皇宫", "玉佛寺", "恰图恰市场"] },
+        { day: 3, location: "清迈", activities: ["火车至清迈", "古城", "周日夜市"] },
+        { day: 4, location: "清迈", activities: ["素贴山", "双龙寺", "宁曼路"] },
+        { day: 5, location: "清迈", activities: ["大象营", "泰餐烹饪课", "夜市"] },
+        { day: 6, location: "曼谷", activities: ["返回", "暹罗广场", "购物"] },
+        { day: 7, location: "曼谷", activities: ["返程"] },
+      ],
+    ],
+  },
 };
 
-function getDefaultRoutes(days: number): RouteTemplate[] {
+// 模板库未覆盖的目的地：以目的地名作为每天地点（可真实定位），
+// 不使用 "Day N" 占位名（占位名无法通过真实 Geocoding）。
+function getDefaultRoutes(destination: string, days: number): RouteTemplate[] {
   const base: RouteTemplate = [];
   for (let i = 1; i <= days; i++) {
-    base.push({ day: i, location: "Day " + i, activities: i === 1 ? ["抵达", "城市探索"] : i === days ? ["自由活动", "返程"] : ["景点游览", "当地美食"] });
+    base.push({ day: i, location: destination, activities: i === 1 ? ["抵达", "城市探索"] : i === days ? ["自由活动", "返程"] : ["景点游览", "当地美食"] });
   }
   return [base, base, base];
 }
@@ -182,7 +344,7 @@ export class PlannerAgent {
     const isPhoto = preferences.interests.includes("photography") || dna.style === "摄影旅行";
     const isFood = preferences.interests.includes("food") || dna.style === "美食旅行";
 
-    const destData = destinations[destination] || { routes: getDefaultRoutes(days), budgetBase: 0 };
+    const destData = destinations[destination] || { routes: getDefaultRoutes(destination, days), budgetBase: 0 };
 
     // Slice routes to match requested days
     const r0 = destData.routes[0].slice(0, days);
